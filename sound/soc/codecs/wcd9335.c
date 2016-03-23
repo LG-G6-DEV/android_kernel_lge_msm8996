@@ -568,8 +568,6 @@ static int wcd9335_get_micb_vout_ctl_val(u32 micb_mv);
 
 static int tasha_config_compander(struct snd_soc_codec *, int, int);
 static void tasha_codec_set_tx_hold(struct snd_soc_codec *, u16, bool);
-static int tasha_codec_internal_rco_ctrl(struct snd_soc_codec *codec,
-				  bool enable);
 
 /* Hold instance to soundwire platform device */
 struct tasha_swr_ctrl_data {
@@ -4018,16 +4016,13 @@ static int tasha_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 		set_bit(HPH_PA_DELAY, &tasha->status_mask);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
-		if (!(strcmp(w->name, "ANC HPHR PA"))) {
-			if ((snd_soc_read(codec, WCD9335_ANA_HPH) & 0xC0)
-							!= 0xC0)
-				/*
-				 * If PA_EN is not set (potentially in ANC case)
-				 * then do nothing for POST_PMU and let left
-				 * channel handle everything.
-				 */
-				break;
-		}
+		if ((snd_soc_read(codec, WCD9335_ANA_HPH) & 0xC0) != 0xC0)
+			/*
+			 * If PA_EN is not set (potentially in ANC case) then
+			 * do nothing for POST_PMU and let left channel handle
+			 * everything.
+			 */
+			break;
 		/*
 		 * 7ms sleep is required after PA is enabled as per
 		 * HW requirement
@@ -4241,16 +4236,13 @@ static int tasha_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 		set_bit(HPH_PA_DELAY, &tasha->status_mask);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
-		if (!(strcmp(w->name, "ANC HPHL PA"))) {
-			if ((snd_soc_read(codec, WCD9335_ANA_HPH) & 0xC0)
-								!= 0xC0)
-				/*
-				 * If PA_EN is not set (potentially in ANC case)
-				 * then do nothing for POST_PMU and let right
-				 * channel handle everything.
-				 */
-				break;
-		}
+		if ((snd_soc_read(codec, WCD9335_ANA_HPH) & 0xC0) != 0xC0)
+			/*
+			 * If PA_EN is not set (potentially in ANC case) then
+			 * do nothing for POST_PMU and let right channel handle
+			 * everything.
+			 */
+			break;
 		/*
 		 * 7ms sleep is required after PA is enabled as per
 		 * HW requirement
@@ -5889,7 +5881,7 @@ static int tasha_codec_tx_adc_cfg(struct snd_soc_dapm_widget *w,
 				  struct snd_kcontrol *kcontrol, int event)
 {
 	int adc_mux_n = w->shift;
-	struct snd_soc_codec *codec = w->codec;
+	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
 	struct tasha_priv *tasha = snd_soc_codec_get_drvdata(codec);
 	int amic_n;
 
