@@ -478,6 +478,8 @@ struct msm_fb_data_type {
 	struct mutex watch_lock;
 	struct watch_data watch;
 #endif
+
+	u32 unblank_bl_level;
 };
 
 static inline void mdss_fb_update_notify_update(struct msm_fb_data_type *mfd)
