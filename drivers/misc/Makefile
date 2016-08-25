@@ -75,4 +75,5 @@ obj-$(CONFIG_UID_SYS_STATS) += uid_sys_stats.o
 obj-$(CONFIG_MEMORY_STATE_TIME) += memory_state_time.o
 obj-$(CONFIG_LGE_IRRC)		+= lge_uei_irrc.o
 obj-$(CONFIG_FORCE_FAST_CHARGE)		+= fastcharge/
-obj-y				+= sound_control.o
+obj-$(CONFIG_SOUND_CONTROL)			+= sound_control.o
+
