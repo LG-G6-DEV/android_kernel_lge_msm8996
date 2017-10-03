@@ -208,6 +208,12 @@ static int ipa_mhi_read_write_host(enum ipa_mhi_dma_dir dir, void *dev_addr,
 			return -ENOMEM;
 		}
 
+		res = ipa_dma_enable();
+		if (res) {
+			IPA_MHI_ERR("failed to enable IPA DMA rc=%d\n", res);
+			goto fail_dma_enable;
+		}
+
 		if (dir == IPA_MHI_DMA_FROM_HOST) {
 			res = ipa_dma_sync_memcpy(mem.phys_base, host_addr,
 				size);
@@ -229,8 +235,7 @@ static int ipa_mhi_read_write_host(enum ipa_mhi_dma_dir dir, void *dev_addr,
 				goto fail_memcopy;
 			}
 		}
-		dma_free_coherent(pdev, mem.size, mem.base,
-			mem.phys_base);
+		goto dma_succeed;
 	} else {
 		void *host_ptr;
 
@@ -253,9 +258,14 @@ static int ipa_mhi_read_write_host(enum ipa_mhi_dma_dir dir, void *dev_addr,
 	IPA_MHI_FUNC_EXIT();
 	return 0;
 
+dma_succeed:
+	IPA_MHI_FUNC_EXIT();
+	res = 0;
 fail_memcopy:
-	dma_free_coherent(ipa_get_dma_dev(), mem.size, mem.base,
-			mem.phys_base);
+	if (ipa_dma_disable())
+		IPA_MHI_ERR("failed to disable IPA DMA\n");
+fail_dma_enable:
+	dma_free_coherent(pdev, mem.size, mem.base, mem.phys_base);
 	return res;
 }
 
@@ -2434,6 +2444,7 @@ void ipa_mhi_destroy(void)
 		goto fail;
 	}
 
+	ipa_dma_destroy();
 	ipa_mhi_debugfs_destroy();
 	destroy_workqueue(ipa_mhi_client_ctx->wq);
 	kfree(ipa_mhi_client_ctx);
@@ -2526,6 +2537,12 @@ int ipa_mhi_init(struct ipa_mhi_init_params *params)
 		goto fail_create_wq;
 	}
 
+	res = ipa_dma_init();
+	if (res) {
+		IPA_MHI_ERR("failed to init ipa dma %d\n", res);
+		goto fail_dma_init;
+	}
+
 	/* Create PROD in IPA RM */
 	memset(&mhi_prod_params, 0, sizeof(mhi_prod_params));
 	mhi_prod_params.name = IPA_RM_RESOURCE_MHI_PROD;
@@ -2583,6 +2600,8 @@ fail_create_rm_cons:
 fail_perf_rm_prod:
 	ipa_rm_delete_resource(IPA_RM_RESOURCE_MHI_PROD);
 fail_create_rm_prod:
+	ipa_dma_destroy();
+fail_dma_init:
 	destroy_workqueue(ipa_mhi_client_ctx->wq);
 fail_create_wq:
 	kfree(ipa_mhi_client_ctx);
