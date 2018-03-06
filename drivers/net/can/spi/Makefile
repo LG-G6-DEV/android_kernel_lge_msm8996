@@ -5,3 +5,4 @@
 
 obj-$(CONFIG_CAN_MCP251X)	+= mcp251x.o
 obj-${CONFIG_CAN_K61}		+= k61.o
+obj-$(CONFIG_QTI_CAN)		+= qti-can.o
