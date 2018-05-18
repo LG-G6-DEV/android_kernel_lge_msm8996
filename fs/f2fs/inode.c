@@ -431,15 +431,6 @@ void update_inode(struct inode *inode, struct page *node_page)
 						F2FS_I(inode)->i_projid);
 			ri->i_projid = cpu_to_le32(i_projid);
 		}
-
-		if (f2fs_sb_has_inode_crtime(F2FS_I_SB(inode)->sb) &&
-			F2FS_FITS_IN_INODE(ri, F2FS_I(inode)->i_extra_isize,
-								i_crtime)) {
-			ri->i_crtime =
-				cpu_to_le64(F2FS_I(inode)->i_crtime.tv_sec);
-			ri->i_crtime_nsec =
-				cpu_to_le32(F2FS_I(inode)->i_crtime.tv_nsec);
-		}
 	}
 
 	__set_inode_rdev(inode, ri);

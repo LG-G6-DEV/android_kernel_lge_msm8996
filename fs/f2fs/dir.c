@@ -790,7 +790,6 @@ int f2fs_fill_dentries(struct dir_context *ctx, struct f2fs_dentry_ptr *d,
 	unsigned int bit_pos;
 	struct f2fs_dir_entry *de = NULL;
 	struct fscrypt_str de_name = FSTR_INIT(NULL, 0);
-	struct f2fs_sb_info *sbi = F2FS_I_SB(d->inode);
 
 	bit_pos = ((unsigned long)ctx->pos % d->max);
 
@@ -828,9 +827,6 @@ int f2fs_fill_dentries(struct dir_context *ctx, struct f2fs_dentry_ptr *d,
 		if (!dir_emit(ctx, de_name.name, de_name.len,
 					le32_to_cpu(de->ino), d_type))
 			return 1;
-
-		if (sbi->readdir_ra == 1)
-			ra_node_page(sbi, le32_to_cpu(de->ino));
 
 		bit_pos += GET_DENTRY_SLOTS(le16_to_cpu(de->name_len));
 		ctx->pos = start_pos + bit_pos;
@@ -902,6 +898,7 @@ static int f2fs_readdir(struct file *file, struct dir_context *ctx)
 			break;
 		}
 
+		kunmap(dentry_page);
 		f2fs_put_page(dentry_page, 1);
 	}
 out_free:

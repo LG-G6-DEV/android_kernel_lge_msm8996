@@ -375,8 +375,6 @@ static int parse_options(struct super_block *sb, char *options)
 	substring_t args[MAX_OPT_ARGS];
 	char *p, *name;
 	int arg = 0;
-	kuid_t uid;
-	kgid_t gid;
 #ifdef CONFIG_QUOTA
 	int ret;
 #endif
@@ -1170,17 +1168,19 @@ static int f2fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	struct super_block *sb = dentry->d_sb;
 	struct f2fs_sb_info *sbi = F2FS_SB(sb);
 	u64 id = huge_encode_dev(sb->s_bdev->bd_dev);
-	block_t total_count, user_block_count, start_count;
+	block_t total_count, user_block_count, start_count, ovp_count;
 	u64 avail_node_count;
 
 	total_count = le64_to_cpu(sbi->raw_super->block_count);
 	user_block_count = sbi->user_block_count;
 	start_count = le32_to_cpu(sbi->raw_super->segment0_blkaddr);
+	ovp_count = SM_I(sbi)->ovp_segments << sbi->log_blocks_per_seg;
 	buf->f_type = F2FS_SUPER_MAGIC;
 	buf->f_bsize = sbi->blocksize;
 
 	buf->f_blocks = total_count - start_count;
-	buf->f_bfree = user_block_count - valid_user_blocks(sbi) -
+	buf->f_bfree = user_block_count - valid_user_blocks(sbi) + ovp_count;
+	buf->f_bavail = user_block_count - valid_user_blocks(sbi) -
 						sbi->current_reserved_blocks;
 	if (buf->f_bfree > F2FS_OPTION(sbi).root_reserved_blocks)
 		buf->f_bavail = buf->f_bfree -
@@ -1188,8 +1188,7 @@ static int f2fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	else
 		buf->f_bavail = 0;
 
-	avail_node_count = sbi->total_node_count - sbi->nquota_files -
-						F2FS_RESERVED_NODE_NUM;
+	avail_node_count = sbi->total_node_count - F2FS_RESERVED_NODE_NUM;
 
 	if (avail_node_count > user_block_count) {
 		buf->f_files = user_block_count;
@@ -1541,7 +1540,6 @@ skip:
 	sb->s_flags = (sb->s_flags & ~MS_POSIXACL) |
 		(test_opt(sbi, POSIX_ACL) ? MS_POSIXACL : 0);
 
-	limit_reserve_root(sbi);
 	return 0;
 restore_gc:
 	if (need_restart_gc) {
@@ -1886,13 +1884,11 @@ void f2fs_quota_off_umount(struct super_block *sb)
 		f2fs_quota_off(sb, type);
 }
 
-#if 0	/* not support */
-static int f2fs_get_projid(struct inode *inode, kprojid_t *projid)
+int f2fs_get_projid(struct inode *inode, kprojid_t *projid)
 {
 	*projid = F2FS_I(inode)->i_projid;
 	return 0;
 }
-#endif
 
 static const struct dquot_operations f2fs_quota_operations = {
 	.get_reserved_space = f2fs_get_reserved_space,
@@ -2424,8 +2420,8 @@ static int init_blkz_info(struct f2fs_sb_info *sbi, int devi)
 
 #define F2FS_REPORT_NR_ZONES   4096
 
-	zones = f2fs_kzalloc(sbi, sizeof(struct blk_zone) *
-				F2FS_REPORT_NR_ZONES, GFP_KERNEL);
+	zones = kcalloc(F2FS_REPORT_NR_ZONES, sizeof(struct blk_zone),
+			GFP_KERNEL);
 	if (!zones)
 		return -ENOMEM;
 
@@ -2569,8 +2565,8 @@ static int f2fs_scan_devices(struct f2fs_sb_info *sbi)
 	 * Initialize multiple devices information, or single
 	 * zoned block device information.
 	 */
-	sbi->devs = f2fs_kzalloc(sbi, sizeof(struct f2fs_dev_info) *
-						max_devices, GFP_KERNEL);
+	sbi->devs = kcalloc(max_devices, sizeof(struct f2fs_dev_info),
+				GFP_KERNEL);
 	if (!sbi->devs)
 		return -ENOMEM;
 
@@ -2752,13 +2748,6 @@ try_onemore:
 		sb->s_qcop = &f2fs_quotactl_ops;
 #if 0	/* not support */
 	sb->s_quota_types = QTYPE_MASK_USR | QTYPE_MASK_GRP | QTYPE_MASK_PRJ;
-
-	if (f2fs_sb_has_quota_ino(sbi->sb)) {
-		for (i = 0; i < MAXQUOTAS; i++) {
-			if (f2fs_qf_ino(sbi->sb, i))
-				sbi->nquota_files++;
-		}
-	}
 #endif
 #endif
 
@@ -2860,7 +2849,6 @@ try_onemore:
 	sbi->last_valid_block_count = sbi->total_valid_block_count;
 	sbi->reserved_blocks = 0;
 	sbi->current_reserved_blocks = 0;
-	limit_reserve_root(sbi);
 
 	for (i = 0; i < NR_INODE_TYPE; i++) {
 		INIT_LIST_HEAD(&sbi->inode_list[i]);
@@ -2908,14 +2896,14 @@ try_onemore:
 
 	err = f2fs_build_stats(sbi);
 	if (err)
-		goto free_node_inode;
+		goto free_nm;
 
 	/* read root inode and dentry */
 	root = f2fs_iget(sb, F2FS_ROOT_INO(sbi));
 	if (IS_ERR(root)) {
 		f2fs_msg(sb, KERN_ERR, "Failed to read root inode");
 		err = PTR_ERR(root);
-		goto free_stats;
+		goto free_node_inode;
 	}
 	if (!S_ISDIR(root->i_mode) || !root->i_blocks || !root->i_size) {
 		iput(root);
@@ -3041,12 +3029,14 @@ free_sysfs:
 free_root_inode:
 	dput(sb->s_root);
 	sb->s_root = NULL;
-free_stats:
-	f2fs_destroy_stats(sbi);
 free_node_inode:
-	release_ino_entry(sbi, true);
 	truncate_inode_pages_final(NODE_MAPPING(sbi));
+	mutex_lock(&sbi->umount_mutex);
+	release_ino_entry(sbi, true);
+	f2fs_leave_shrinker(sbi);
 	iput(sbi->node_inode);
+	mutex_unlock(&sbi->umount_mutex);
+	f2fs_destroy_stats(sbi);
 free_nm:
 	destroy_node_manager(sbi);
 free_sm:
@@ -3060,12 +3050,16 @@ free_meta_inode:
 free_io_dummy:
 	if (sbi->write_io_dummy)
 		mempool_destroy(sbi->write_io_dummy);
+free_options:
+	for (i = 0; i < NR_PAGE_TYPE; i++)
+		kfree(sbi->write_io[i]);
+	destroy_percpu_info(sbi);
 free_percpu:
 	destroy_percpu_info(sbi);
 free_bio_info:
 	for (i = 0; i < NR_PAGE_TYPE; i++)
 		kfree(sbi->write_io[i]);
-free_options:
+	destroy_percpu_info(sbi);
 #ifdef CONFIG_QUOTA
 	for (i = 0; i < F2FS_MAXQUOTAS; i++)
 		kfree(F2FS_OPTION(sbi).s_qf_names[i]);
