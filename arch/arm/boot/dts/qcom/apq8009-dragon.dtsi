@@ -11,16 +11,11 @@
  * GNU General Public License for more details.
  */
 
-/dts-v1/;
 
-#include "apq8009-dragon.dtsi"
-
-/ {
-	model = "Qualcomm Technologies, Inc. APQ8009 Dragon Board";
-	compatible = "qcom,apq8009-mtp", "qcom,apq8009", "qcom,mtp";
-	qcom,msm-id = <265 2>;
-	qcom,board-id= <32 0x0>;
-};
+#include "msm8909-mtp.dtsi"
+#include "msm8909-pm8916.dtsi"
+#include "msm8909-pm8916-mtp.dtsi"
+#include "apq8009-audio-external_codec.dtsi"
 
 &soc {
 	ext-codec {
@@ -107,11 +102,6 @@
 		regulator-name = "smb1360_otg_vreg";
 		status= "disabled";
 	};
-};
-
-&pm8916_chg {
-	status = "ok";
-	qcom,use-external-charger;
 };
 
 &pm8916_bms {
