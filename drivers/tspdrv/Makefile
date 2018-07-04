@@ -25,14 +25,6 @@
 # under the License.
 # =========================================================================
 
-ifeq ($(KERNEL_ROOT),)
-    override KERNEL_ROOT = /usr/src/linux
-endif
-
-EXTRA_CFLAGS += -I$(M)
-
-EXTRA_CFLAGS += -I$(KERNEL_ROOT)/drivers/tspdrv/
-
 obj-$(CONFIG_TSPDRV) += tspdrv.o
 
 all:
