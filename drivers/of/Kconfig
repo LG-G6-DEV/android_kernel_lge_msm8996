@@ -120,5 +120,4 @@ config OF_OVERLAY
 	select OF_DYNAMIC
 	select OF_RESOLVE
 
-endmenu # OF
 endif # OF
