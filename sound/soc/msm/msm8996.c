@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
+//#define DEBUG
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -72,9 +72,11 @@
 static int slim0_rx_sample_rate = SAMPLING_RATE_48KHZ;
 static int slim0_tx_sample_rate = SAMPLING_RATE_48KHZ;
 static int slim1_tx_sample_rate = SAMPLING_RATE_48KHZ;
+static int slim3_tx_sample_rate = SAMPLING_RATE_48KHZ;
 static int slim0_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int slim0_tx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int slim1_tx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+static int slim3_tx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int hdmi_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int msm8996_auxpcm_rate = SAMPLING_RATE_8KHZ;
 static int slim5_rx_sample_rate = SAMPLING_RATE_48KHZ;
@@ -88,6 +90,7 @@ static int msm8996_spk_control = 1;
 static int msm_slim_0_rx_ch = 1;
 static int msm_slim_0_tx_ch = 1;
 static int msm_slim_1_tx_ch = 1;
+static int msm_slim_3_tx_ch = 1;
 static int msm_slim_5_rx_ch = 1;
 static int msm_slim_6_rx_ch = 1;
 static int msm_hifi_control;
@@ -102,8 +105,6 @@ static int msm_quat_mi2s_tx_ch = 2;
 #endif
 #if defined(CONFIG_SND_SOC_ES9218P)
 bool enable_es9218p = false;
-#elif defined(CONFIG_SND_SOC_ES9018)
-bool enable_es9218p = true;
 #endif
 
 
@@ -1204,6 +1205,24 @@ static int msm_slim_1_tx_ch_put(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
+static int msm_slim_3_tx_ch_get(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: msm_slim_3_tx_ch  = %d\n", __func__,
+		 msm_slim_3_tx_ch);
+	ucontrol->value.integer.value[0] = msm_slim_3_tx_ch - 1;
+	return 0;
+}
+
+static int msm_slim_3_tx_ch_put(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	msm_slim_3_tx_ch = ucontrol->value.integer.value[0] + 1;
+
+	pr_debug("%s: msm_slim_3_tx_ch = %d\n", __func__, msm_slim_3_tx_ch);
+	return 1;
+}
+
 static int msm_vi_feed_tx_ch_get(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -1877,6 +1896,22 @@ static int msm_slim_1_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
+static int msm_slim_3_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+					    struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	pr_debug("%s()\n", __func__);
+	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT, slim3_tx_bit_format);
+	rate->min = rate->max = slim3_tx_sample_rate;
+	channels->min = channels->max = msm_slim_3_tx_ch;
+
+	return 0;
+}
+
 static int msm_slim_4_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					    struct snd_pcm_hw_params *params)
 {
@@ -1975,6 +2010,8 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 			msm_slim_0_tx_ch_get, msm_slim_0_tx_ch_put),
 	SOC_ENUM_EXT("SLIM_1_TX Channels", msm_snd_enum[2],
 			msm_slim_1_tx_ch_get, msm_slim_1_tx_ch_put),
+	SOC_ENUM_EXT("SLIM_3_TX Channels", msm_snd_enum[2],
+			msm_slim_3_tx_ch_get, msm_slim_3_tx_ch_put),
 	SOC_ENUM_EXT("AUX PCM SampleRate", msm8996_auxpcm_enum[0],
 			msm8996_auxpcm_rate_get,
 			msm8996_auxpcm_rate_put),
@@ -2406,12 +2443,15 @@ static void *def_tasha_mbhc_cal(void)
 	}
 
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(tasha_wcd_cal)->X) = (Y))
-	S(v_hs_max, 1500);
-#if defined(CONFIG_SND_SOC_ES9218P) || defined(CONFIG_SND_SOC_ES9018)
+#if defined(CONFIG_SND_SOC_ES9018)
+	S(v_hs_max, 2800);
+#elif defined(CONFIG_SND_SOC_ES9218P)
 	if(enable_es9218p){
 		S(v_hs_max, 2800);
 		pr_info("%s: set v_hs_max as 2800 installed es9218p chip\n", __func__);
 	}
+#else
+	S(v_hs_max, 1500);
 #endif
 #undef S
 #define S(X, Y) ((WCD_MBHC_CAL_BTN_DET_PTR(tasha_wcd_cal)->X) = (Y))
@@ -2509,7 +2549,7 @@ static int msm_snd_hw_params(struct snd_pcm_substream *substream,
 			 * Since Rx is fed as reference for EC, the config of
 			 * this DAI is based on that of the Rx path.
 			 */
-			user_set_tx_ch = msm_slim_0_rx_ch;
+			user_set_tx_ch = msm_slim_3_tx_ch;
 		else if (dai_link->be_id == MSM_BACKEND_DAI_SLIMBUS_4_TX)
 			user_set_tx_ch = msm_vi_feed_tx_ch;
 		else
@@ -3449,6 +3489,22 @@ static struct snd_soc_dai_link msm8996_tasha_fe_dai_links[] = {
 		.codec_dai_name = "tasha_cpe",
 		.codec_name = "tasha_codec",
 	},
+        {
+                .name = "MultiMedia3 Record",
+                .stream_name = "MultiMedia3 Capture",
+                .cpu_dai_name = "MultiMedia3",
+                .platform_name = "msm-pcm-dsp.0",
+                .dynamic = 1,
+                .dpcm_playback = 1,
+                .dpcm_capture = 1,
+                .trigger = {SND_SOC_DPCM_TRIGGER_POST,
+                                SND_SOC_DPCM_TRIGGER_POST},
+                .codec_dai_name = "snd-soc-dummy-dai",
+                .codec_name = "snd-soc-dummy",
+                .ignore_suspend = 1,
+                .ignore_pmdown_time = 1,
+                .be_id = MSM_FRONTEND_DAI_MULTIMEDIA3,
+	},
 };
 
 static struct snd_soc_dai_link msm8996_common_be_dai_links[] = {
@@ -3667,11 +3723,11 @@ static struct snd_soc_dai_link msm8996_tasha_be_dai_links[] = {
 		.cpu_dai_name = "msm-dai-q6-dev.16391",
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
-		.codec_dai_name = "tasha_tx1",
+		.codec_dai_name = "tasha_tx3",
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_3_TX,
-		.be_hw_params_fixup = msm_slim_0_tx_be_hw_params_fixup,
+		.be_hw_params_fixup = msm_slim_3_tx_be_hw_params_fixup,
 		.ops = &msm8996_be_ops,
 		.ignore_suspend = 1,
 	},
@@ -3872,7 +3928,7 @@ static struct snd_soc_dai_link msm8996_lge_dai_links[] = {
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA2,
 	},
 #endif	/* CONFIG_SND_LGE_DSDP_DUAL_AUDIO */
-#if defined(CONFIG_SND_USE_SEC_MI2S) && defined(CONFIG_SND_SOC_ES9018)
+#ifdef CONFIG_SND_SOC_ES9018
 	{
 		.name = LPASS_BE_SEC_MI2S_RX,
 		.stream_name = "Secondary MI2S Playback",
@@ -3906,7 +3962,7 @@ static struct snd_soc_dai_link msm8996_lge_dai_links[] = {
 		.ignore_pmdown_time = 1,
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA2,
 	},
-#endif
+#endif /* CONFIG_SND_SOC_ES9018 */
 #ifdef CONFIG_SND_USE_TERT_MI2S
 	{
 		.name = LPASS_BE_TERT_MI2S_RX,
@@ -4281,7 +4337,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 #endif
 		memcpy(msm8996_tasha_dai_links + card->num_links,
 			   msm8996_lge_dai_links, sizeof(msm8996_lge_dai_links));
-		card->num_links += ARRAY_SIZE(msm8996_lge_dai_links);
+		card->num_links += ARRAY_SIZE(msm8996_lge_dai_links);		
 //set SEC_MI2S dai if ESS DAC DTSI is enabled
 #ifdef CONFIG_SND_SOC_ES9218P
 		if(of_property_read_bool(dev->of_node, "lge,es9218p-codec")) { //check ESS DAC DTSI is enabled
