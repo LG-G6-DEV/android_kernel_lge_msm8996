@@ -477,6 +477,8 @@ static void voc_set_error_state(uint16_t reset_proc)
 		v = &common.voice[i];
 		if (v != NULL)
 			v->voc_state = VOC_ERROR;
+			v->rec_info.recording = 0;
+		}
 	}
 
 static bool is_other_session_active(u32 session_id)
