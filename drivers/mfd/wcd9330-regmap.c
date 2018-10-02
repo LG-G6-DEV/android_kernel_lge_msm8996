@@ -17,6 +17,7 @@
 #include <linux/regmap.h>
 #include <linux/device.h>
 #include "wcd9xxx-regmap.h"
+#include "../../sound/soc/codecs/wcd9330.h"
 
 static struct reg_default wcd9330_defaults[] = {
 	{ TOMTOM_A_CHIP_CTL, TOMTOM_A_CHIP_CTL__POR },
@@ -887,10 +888,10 @@ static struct reg_default wcd9330_defaults[] = {
 	{ TOMTOM_A_CDC_BOOST_TRGR_EN, TOMTOM_A_CDC_BOOST_TRGR_EN__POR },
 };
 
-static bool wcd9330_is_readable_register(struct device *dev, unsigned int reg)
+/*static bool wcd9330_is_readable_register(struct device *dev, unsigned int reg)
 {
 	return tomtom_reg_readable[reg];
-}
+}*/
 
 static bool tomtom_is_digital_gain_register(unsigned int reg)
 {
@@ -986,5 +987,5 @@ struct regmap_config wcd9330_regmap_config = {
 	.num_reg_defaults = ARRAY_SIZE(wcd9330_defaults),
 	.max_register = WCD9330_MAX_REGISTER,
 	.volatile_reg = wcd9330_is_volatile_register,
-	.readable_reg = wcd9330_is_readable_register,
+/*	.readable_reg = wcd9330_is_readable_register,*/
 };
