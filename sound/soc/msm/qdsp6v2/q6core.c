@@ -447,7 +447,6 @@ int32_t core_get_license_status(uint32_t module_id)
 	get_lvr_cmd.hdr.opcode = AVCS_CMD_GET_LICENSE_VALIDATION_RESULT;
 	get_lvr_cmd.id = module_id;
 
-
 	ret = apr_send_pkt(q6core_lcl.core_handle_q, (uint32_t *) &get_lvr_cmd);
 	if (ret < 0) {
 		pr_err("%s: license_validation request failed, err %d\n",
