@@ -35,11 +35,7 @@
 #define DRIVER_AUTHOR	"yongk.kim@lge.com"
 #define DRIVER_VERSION	"1.0"
 
-#ifdef CONFIG_MACH_MSM8996_LUCYE_KR_F
-#define MAX_CABLE_NUM	6
-#else
 #define MAX_CABLE_NUM	15
-#endif
 #define DEFAULT_USB_VAL 1200001
 #define CABLE_DETECT_DELAY	msecs_to_jiffies(250)
 
@@ -888,16 +884,6 @@ static void get_cable_data_from_dt(struct cable_detect *cd)
 	u32 cable_value[6];
 	int rc = 0;
 	struct device_node *node_temp = cd->dev->of_node;
-#ifdef CONFIG_MACH_MSM8996_LUCYE_KR_F
-	const char *propname[MAX_CABLE_NUM] = {
-		"lge,no-init-cable",
-		"lge,cable-mhl-1k",
-		"lge,cable-56k",
-		"lge,cable-130k",
-		"lge,cable-910k",
-		"lge,cable-none"
-	};
-#else
 	const char *propname[MAX_CABLE_NUM] = {
 		"lge,no-init-cable",
 		"lge,cable-mhl-1k",
@@ -915,7 +901,6 @@ static void get_cable_data_from_dt(struct cable_detect *cd)
 		"lge,cable-910k",
 		"lge,cable-none"
 	};
-#endif
 	for (i = 0 ; i < MAX_CABLE_NUM ; i++) {
 		struct cable_info_table *cable_info_table;
 		cable_info_table = kzalloc(sizeof(struct cable_info_table),	GFP_KERNEL);

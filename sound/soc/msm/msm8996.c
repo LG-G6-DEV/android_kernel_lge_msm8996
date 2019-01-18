@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
+//#define DEBUG
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -37,15 +37,6 @@
 #include "../codecs/wcd9330.h"
 #include "../codecs/wcd9335.h"
 #include "../codecs/wsa881x.h"
-
-#ifdef CONFIG_SND_SOC_ES9018
-#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_BOARD_REVISION
-#include <soc/qcom/lge/power/lge_board_revision.h>
-#include <soc/qcom/lge/power/lge_power_class.h>
-#else
-#include <soc/qcom/lge/board_lge.h>
-#endif
-#endif
 
 #define DRV_NAME "msm8996-asoc-snd"
 
@@ -105,8 +96,6 @@ static int msm_quat_mi2s_tx_ch = 2;
 #endif
 #if defined(CONFIG_SND_SOC_ES9218P)
 bool enable_es9218p = false;
-#elif defined(CONFIG_SND_SOC_ES9018)
-bool enable_es9218p = true;
 #endif
 
 
@@ -188,7 +177,6 @@ struct msm8996_asoc_mach_data {
 };
 
 #ifdef CONFIG_SND_USE_SEC_MI2S
-
 static struct afe_clk_set sec_mi2s_clk = {
 	AFE_API_VERSION_I2S_CONFIG,
 	Q6AFE_LPASS_CLK_ID_SEC_MI2S_IBIT,
@@ -244,6 +232,7 @@ static void *def_tasha_mbhc_cal(void);
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm);
 static int msm8996_wsa881x_init(struct snd_soc_component *component);
+
 
 /*
  * Need to report LINEIN
@@ -666,6 +655,7 @@ static const struct snd_soc_dapm_widget msm8996_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Analog Mic2", NULL),
 	SND_SOC_DAPM_MIC("Analog Mic3", NULL),
 #endif
+
 	SND_SOC_DAPM_MIC("Digital Mic0", NULL),
 	SND_SOC_DAPM_MIC("Digital Mic1", NULL),
 	SND_SOC_DAPM_MIC("Digital Mic2", NULL),
@@ -789,7 +779,6 @@ static int slim6_rx_sample_rate_put(struct snd_kcontrol *kcontrol,
 		slim6_rx_sample_rate = SAMPLING_RATE_48KHZ;
 		break;
 	}
-
 #ifdef CONFIG_SND_USE_SEC_MI2S
 	sec_mi2s_sample_rate = slim6_rx_sample_rate;
 #endif
@@ -923,7 +912,6 @@ static int slim0_rx_sample_rate_put(struct snd_kcontrol *kcontrol,
 	default:
 		slim0_rx_sample_rate = SAMPLING_RATE_48KHZ;
 	}
-
 	pr_debug("%s: slim0_rx_sample_rate = %d\n", __func__,
 		 slim0_rx_sample_rate);
 
@@ -2445,12 +2433,15 @@ static void *def_tasha_mbhc_cal(void)
 	}
 
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(tasha_wcd_cal)->X) = (Y))
-	S(v_hs_max, 1500);
-#if defined(CONFIG_SND_SOC_ES9218P) || defined(CONFIG_SND_SOC_ES9018)
+#if defined(CONFIG_SND_SOC_ES9018)
+	S(v_hs_max, 2800);
+#elif defined(CONFIG_SND_SOC_ES9218P)
 	if(enable_es9218p){
 		S(v_hs_max, 2800);
 		pr_info("%s: set v_hs_max as 2800 installed es9218p chip\n", __func__);
 	}
+#else
+	S(v_hs_max, 1500);
 #endif
 #undef S
 #define S(X, Y) ((WCD_MBHC_CAL_BTN_DET_PTR(tasha_wcd_cal)->X) = (Y))
@@ -3488,21 +3479,21 @@ static struct snd_soc_dai_link msm8996_tasha_fe_dai_links[] = {
 		.codec_dai_name = "tasha_cpe",
 		.codec_name = "tasha_codec",
 	},
-	{
-		.name = "MultiMedia3 Record",
-		.stream_name = "MultiMedia3 Capture",
-		.cpu_dai_name = "MultiMedia3",
-		.platform_name = "msm-pcm-dsp.0",
-		.dynamic = 1,
-		.dpcm_playback = 1,
-		.dpcm_capture = 1,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-						SND_SOC_DPCM_TRIGGER_POST},
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA3,
+        {
+                .name = "MultiMedia3 Record",
+                .stream_name = "MultiMedia3 Capture",
+                .cpu_dai_name = "MultiMedia3",
+                .platform_name = "msm-pcm-dsp.0",
+                .dynamic = 1,
+                .dpcm_playback = 1,
+                .dpcm_capture = 1,
+                .trigger = {SND_SOC_DPCM_TRIGGER_POST,
+                                SND_SOC_DPCM_TRIGGER_POST},
+                .codec_dai_name = "snd-soc-dummy-dai",
+                .codec_name = "snd-soc-dummy",
+                .ignore_suspend = 1,
+                .ignore_pmdown_time = 1,
+                .be_id = MSM_FRONTEND_DAI_MULTIMEDIA3,
 	},
 };
 
@@ -3961,7 +3952,7 @@ static struct snd_soc_dai_link msm8996_lge_dai_links[] = {
 		.ignore_pmdown_time = 1,
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA2,
 	},
-#endif
+#endif /* CONFIG_SND_SOC_ES9018 */
 #ifdef CONFIG_SND_USE_TERT_MI2S
 	{
 		.name = LPASS_BE_TERT_MI2S_RX,
@@ -4329,14 +4320,9 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 			}
 			card->num_links = LGE_DAI_LINK_ID_BASE;
 		}
-#ifdef CONFIG_SND_SOC_ES9018
-		enable_es9218p = true;
-		if (!strcmp(msm8996_lge_dai_links[3].codec_name, "es9018-codec.6-0048"))
-			   msm8996_lge_dai_links[3].codec_name = "es9018-codec.3-0048";
-#endif
 		memcpy(msm8996_tasha_dai_links + card->num_links,
 			   msm8996_lge_dai_links, sizeof(msm8996_lge_dai_links));
-		card->num_links += ARRAY_SIZE(msm8996_lge_dai_links);
+		card->num_links += ARRAY_SIZE(msm8996_lge_dai_links);		
 //set SEC_MI2S dai if ESS DAC DTSI is enabled
 #ifdef CONFIG_SND_SOC_ES9218P
 		if(of_property_read_bool(dev->of_node, "lge,es9218p-codec")) { //check ESS DAC DTSI is enabled
@@ -4602,7 +4588,6 @@ static int msm8996_asoc_machine_probe(struct platform_device *pdev)
 	}
 
 	spdev = pdev;
-
 	ret = msm8996_populate_dai_link_component_of_node(card);
 	if (ret) {
 		ret = -EPROBE_DEFER;

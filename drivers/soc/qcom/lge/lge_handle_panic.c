@@ -119,45 +119,73 @@ int lge_get_restart_reason(void)
 		return 0;
 }
 
-inline static void lge_set_key_crash_cnt(int key, int* clear)
+inline static void lge_set_key_crash_cnt(int key, int* is_sequence_valid)
 {
 	unsigned long cur_time = 0;
-	unsigned long key_crash_gap = 0;
+	unsigned long key_input_gap = 0;
 
 	cur_time = jiffies_to_msecs(jiffies);
-	key_crash_gap = cur_time - key_crash_last_time;
+	key_input_gap = cur_time - key_crash_last_time;
 
-	if ((key_crash_cnt != 0) && (key_crash_gap > KEY_CRASH_TIMEOUT)) {
-		pr_debug("%s: Ready to panic %d : over time %ld!\n", __func__, key, key_crash_gap);
+	/* check the gap time between two key inputs except the first down key input*/
+	if ((key_crash_cnt != 0) && (key_input_gap > KEY_CRASH_TIMEOUT)) {
+		pr_debug("%s: Ready to panic %d : over time %ld!\n", __func__, key, key_input_gap);
 		return;
 	}
 
-	*clear = 0;
+	*is_sequence_valid = 1;
 	key_crash_cnt++;
 	key_crash_last_time = cur_time;
 
-	pr_info("%s: Ready to panic %d : count %d, time gap %ld!\n", __func__, key, key_crash_cnt, key_crash_gap);
+	pr_info("%s: Ready to panic %d : count %d, time gap %ld!\n", __func__, key, key_crash_cnt, key_input_gap);
 }
 
-void lge_gen_key_panic(int key)
+void lge_gen_key_panic(int key, int key_status)
 {
-	int clear = 1;
-	int order = key_crash_cnt % 3;
+	int is_sequence_valid = 0;
+	int key_order = key_crash_cnt % 3;
 
+	/* the flag is set when the correct key is pressed. But if there are other inputs after the key press, the flag is cleared to zero */
+	static int no_other_key_input = 0;
+
+	/* check the lge crash handler enabled */
 	if(lge_get_download_mode() != 1)
 		return;
 
-	if(((key == KEY_VOLUMEDOWN) && (order == 0))
-		|| ((key == KEY_POWER) && (order == 1))
-		|| ((key == KEY_VOLUMEUP) && (order == 2)))
-		lge_set_key_crash_cnt(key, &clear);
+	/* First, check the order of key input.									*/
+	/* If the order is right, and then check the key_status. (0:release, 1:press)				*/
+	/* In the press status case,										*/
+	/*	set no_other_key_input flag and then return.							*/
+	/* In the release status case,										*/
+	/*	check that there is no other input after the key press.						*/
+	/*	And then clear the flag and call the lge_set_key_crash_cnt function to increase key_crash_cnt	*/
+	if(((key == KEY_VOLUMEDOWN) && (key_order == 0))
+		|| ((key == KEY_POWER) && (key_order == 1))
+		|| ((key == KEY_VOLUMEUP) && (key_order == 2))) {
+		if(key_status == 0) {
+			if(no_other_key_input == 1) {
+				no_other_key_input = 0;
+				lge_set_key_crash_cnt(key, &is_sequence_valid);
+			}
+		} else {
+			no_other_key_input = 1;
+			return;
+		}
+	}
 
-	if (clear == 1) {
-		key_crash_cnt = 0;
+	/* If the sequence is invalid, clear key_crash_cnt to zero */
+	if (is_sequence_valid == 0) {
+		if(no_other_key_input == 1)
+			no_other_key_input = 0;
+
+		if(key_crash_cnt > 0)
+			key_crash_cnt = 0;
+
 		pr_debug("%s: Ready to panic %d : cleared!\n", __func__, key);
 		return;
 	}
 
+	/* If the value of key_crash_cnt is 7, generate panic */
 	if (key_crash_cnt == 7) {
 		gen_key_panic = 1;
 		panic("%s: Generate panic by key!\n", __func__);
@@ -492,7 +520,7 @@ static int lge_boot_lockup_check_xo_therm_too_hot(void)
 
 	if(!lge_adc_lpc) {
 		pr_emerg("lge_adc is not connected\n");
-        return -1;
+        return -256;
 	}
 
 	rc = lge_adc_lpc->get_property(lge_adc_lpc,
@@ -500,35 +528,65 @@ static int lge_boot_lockup_check_xo_therm_too_hot(void)
 
 	if(rc < 0) {
 		pr_emerg("lge_adc XO_THERM is not valid\n");
-        return -1;
+        return -256;
 	}
 
 	xo_therm = lge_val.intval;
 
 	pr_emerg("boot_lockup_detect XO_THERM[%d]\n",xo_therm);
 
-	if(xo_therm >= 70) // too hot
-		return 1;
+	return xo_therm;
+}
 
-    return 0;
+int lge_boot_lockup_num_online_cpus(void)
+{
+	int cpus = num_online_cpus();
+	pr_emerg("boot_lockup_detect num of cpu online[%d]\n",cpus);
+	return cpus;
 }
 #endif
 static void lge_boot_lockup_detect_func(struct work_struct *work)
 {
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_ADC_QCT
-	if(lge_boot_lockup_check_xo_therm_too_hot() == 1) { // too hot
+	static int retry = 0;
+	int xo_therm = lge_boot_lockup_check_xo_therm_too_hot();
+	int num_cpus = lge_boot_lockup_num_online_cpus();
+#endif
+
+	if( boot_lockup_detect_working != LOCKUP_WQ_STARTED) {
+		pr_emerg("WARNING: detecting lockup during boot! but, status is not LOCKUP_WQ_STARTED [%d]",
+				boot_lockup_detect_working);
+		return;
+	}
+
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_ADC_QCT
+	if(retry == 0 && (xo_therm >= 60 || num_cpus <= 2)) { // too hot & too few cpus
+		boot_lockup_detect_working = LOCKUP_WQ_STARTED;
 		pr_emerg("==================================================================\n");
-		pr_emerg("WARNING: detecting lockup during boot! skip panic by too hot\n");
+		pr_emerg("WARNING: detecting lockup during boot! too hot! one more chance %lds \n", boot_deadline/1000);
 		pr_emerg("==================================================================\n");
-	} else
+		retry = 1;
+		queue_delayed_work(system_highpri_wq, &lge_boot_lockup_detect_work, msecs_to_jiffies(boot_deadline));
+	} else if(retry == 1 && xo_therm >= 70) {
+		boot_lockup_detect_working = LOCKUP_WQ_CANCELED;
+		pr_emerg("================================================================\n");
+		pr_emerg("WARNING: detecting lockup during boot! abandon for terrible hot \n");
+		pr_emerg("================================================================\n");
+	}
+	else
 #endif
 	{
+		boot_lockup_detect_working = LOCKUP_WQ_CANCELED;
 		pr_emerg("==========================================================\n");
 		pr_emerg("WARNING: detecting lockup during boot! forced panic......\n");
 		pr_emerg("==========================================================\n");
 
+#ifdef CONFIG_LGE_POWER_ONOFF_LOCKUP_DEBUG
 		//panic("detecting lockup during boot!\n");
 		gen_wdt_bite(NULL,NULL);
+#else
+		machine_restart(NULL);
+#endif
 	}
 }
 
@@ -536,9 +594,9 @@ static void lge_init_boot_lockup_detect(void)
 {
 
 	if( !strcmp(CONFIG_LOCALVERSION,"-perf") )
-		boot_deadline = 120 * 1000;
+		boot_deadline = 180 * 1000;
 	else
-		boot_deadline = 240 * 1000;
+		boot_deadline = 360 * 1000;
 
 	pr_info("%s boot_partition:%s boot_mode:%d fota:%d\n", __func__,
 			lge_get_boot_partition(), lge_get_boot_mode(), lge_get_fota_mode());
@@ -557,7 +615,7 @@ static void lge_init_boot_lockup_detect(void)
 /* These sysfs node should be called by only init.rc files for mutual exclusion*/
 static int cancel_boot_lockup_detect(const char *val, struct kernel_param *kp)
 {
-    if( boot_lockup_detect_working == LOCKUP_WQ_STARTED) {
+	if( boot_lockup_detect_working == LOCKUP_WQ_STARTED) {
 		boot_lockup_detect_working = LOCKUP_WQ_CANCELED;
 		pr_info("cancel boot_lockup_detect_work\n");
 		cancel_delayed_work_sync(&lge_boot_lockup_detect_work);
@@ -577,7 +635,7 @@ static int pause_boot_lockup_detect(const char *val, struct kernel_param *kp)
 		boot_lockup_detect_working = LOCKUP_WQ_STARTED;
 		pr_info("restart boot_lockup_detect_work after %lds\n", (unsigned long)boot_deadline/1000);
 		queue_delayed_work(system_highpri_wq, &lge_boot_lockup_detect_work, msecs_to_jiffies(boot_deadline));
-    }
+	}
 
     return 0;
 }
@@ -586,27 +644,45 @@ module_param_call(pause_boot_lockup_detect, pause_boot_lockup_detect, NULL, NULL
 
 #define REBOOT_DEADLINE msecs_to_jiffies(30 * 1000)
 
+static int is_shutdown;
+static char restart_reason_str[32];
 static struct delayed_work lge_panic_reboot_work;
 
 static void lge_panic_reboot_work_func(struct work_struct *work)
 {
-
-    pr_emerg("==========================================================\n");
+	pr_emerg("==========================================================\n");
 	pr_emerg("WARNING: detecting lockup during reboot! forcing panic....\n");
 	pr_emerg("==========================================================\n");
 
+#ifdef CONFIG_LGE_POWER_ONOFF_LOCKUP_DEBUG
 	BUG();
+#else
+	if(is_shutdown == 1)
+		machine_power_off();
+	else {
+		pr_emerg("restart_reason : %s\n",restart_reason_str);
+		machine_restart(restart_reason_str);
+	}
+#endif
 }
 
 static int lge_panic_reboot_handler(struct notifier_block *this,
 		unsigned long event, void *ptr)
 {
-	if (lge_get_download_mode() != 1)
+	pr_emerg("event : %ld, restart_reason : %s\n",event, (char*)ptr);
+	if(event == SYS_RESTART){
+		if(ptr != NULL) {
+			strncpy(restart_reason_str, (char*)ptr, 31);
+		}
+	}
+	else if(event == SYS_HALT || event == SYS_POWER_OFF)
+		is_shutdown = 1;
+	else
 		return NOTIFY_DONE;
 
 	INIT_DELAYED_WORK(&lge_panic_reboot_work, lge_panic_reboot_work_func);
 	queue_delayed_work(system_highpri_wq, &lge_panic_reboot_work,
-		   REBOOT_DEADLINE);
+		REBOOT_DEADLINE);
 	return NOTIFY_DONE;
 }
 
@@ -615,6 +691,51 @@ static struct notifier_block lge_panic_reboot_notifier = {
 	NULL,
 	0
 };
+
+/* Should be greater than REBOOT_DEADLINE for init process lockup*/
+#define POWERCTL_DEADLINE msecs_to_jiffies(35 * 1000)
+static int is_poweroff;
+static char reboot_reason_str[32];
+static struct delayed_work lge_panic_powerctl_work;
+
+static void lge_panic_powerctl_work_func(struct work_struct *work)
+{
+	pr_emerg("==========================================================\n");
+	pr_emerg("WARNING: detecting lockup during sys.powerctl! forcing panic....\n");
+	pr_emerg("==========================================================\n");
+
+#ifdef CONFIG_LGE_POWER_ONOFF_LOCKUP_DEBUG
+	BUG();
+#else
+	if(is_poweroff)
+		machine_power_off();
+	else {
+		pr_emerg("reboot_reason : %s\n",reboot_reason_str);
+		machine_restart(reboot_reason_str);
+	}
+#endif
+}
+
+static int lge_panic_powerctl_lockup_detect(const char *val, struct kernel_param *kp)
+{
+	pr_err("lge_panic_powerctl_lockup_detect %s",val);
+
+	if(val == NULL)
+		return 0;
+
+	if(!strncmp(val,"shutdown",8))
+		is_poweroff = 1;
+	else if(!strncmp(val,"reboot",6))
+		strncpy(reboot_reason_str, val+7,31);
+	else
+		return 0;
+
+	INIT_DELAYED_WORK(&lge_panic_powerctl_work, lge_panic_powerctl_work_func);
+	queue_delayed_work(system_highpri_wq, &lge_panic_powerctl_work,
+		POWERCTL_DEADLINE);
+	return 0;
+}
+module_param_call(powerctl_lockup_detect, lge_panic_powerctl_lockup_detect, NULL, NULL, S_IWUSR);
 
 static int __init lge_panic_handler_early_init(void)
 {

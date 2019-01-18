@@ -177,7 +177,6 @@ static const struct snd_kcontrol_new wsa_analog_gain_controls[] = {
 		     wsa_pa_gain_get, wsa_pa_gain_put),
 };
 
-
 static int codec_debug_open(struct inode *inode, struct file *file)
 {
 	file->private_data = inode->i_private;
@@ -956,6 +955,7 @@ static void wsa881x_init(struct snd_soc_codec *codec)
 	/* Bring out of digital reset */
 	snd_soc_update_bits(codec, WSA881X_CDC_RST_CTL, 0x01, 0x01);
 
+		dev_info(codec->dev, "%s: WSA881X_IS_2_0\n", __func__);
 	snd_soc_update_bits(codec, WSA881X_CLOCK_CONFIG, 0x10, 0x10);
 	snd_soc_update_bits(codec, WSA881X_SPKR_OCP_CTL, 0x02, 0x02);
 	snd_soc_update_bits(codec, WSA881X_SPKR_MISC_CTL1, 0xC0, 0x80);
@@ -987,6 +987,7 @@ static void wsa881x_init(struct snd_soc_codec *codec)
 			    0xFF, 0xB2);
 	snd_soc_update_bits(codec, WSA881X_BONGO_RESRV_REG2,
 			    0xFF, 0x05);
+		dev_info(codec->dev, "%s: WSA881X_IS_NOT_2_0\n", __func__);
 }
 
 static int32_t wsa881x_resource_acquire(struct snd_soc_codec *codec,
@@ -1328,6 +1329,8 @@ static int wsa881x_swr_reset(struct swr_device *pdev)
 		/* Retry after 1 msec delay */
 		usleep_range(1000, 1100);
 	}
+	if(retry == 255)
+		panic("[AudioBSP] swrm_get_logical_dev_num error %d",retry);
 	regcache_mark_dirty(wsa881x->regmap);
 	regcache_sync(wsa881x->regmap);
 	return 0;

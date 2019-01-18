@@ -10203,7 +10203,7 @@ static const struct snd_soc_dapm_widget msm_qdsp6_widgets[] = {
 	SND_SOC_DAPM_AIF_IN("PRI_MI2S_DL_HL",
 		"Primary MI2S_RX Hostless Playback",
 		0, 0, 0, 0),
-#ifdef CONFIG_SND_USE_SEC_MI2S
+#if 0  // #ifdef CONFIG_SND_USE_SEC_MI2S
 	SND_SOC_DAPM_AIF_OUT("SEC_MI2S_UL_HL", "SEC_MI2S_HOSTLESS Capture",
 		0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_IN("SEC_MI2S_DL_HL", "SEC_MI2S_HOSTLESS Playback",

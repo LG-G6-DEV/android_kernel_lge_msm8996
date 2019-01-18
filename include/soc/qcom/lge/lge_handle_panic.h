@@ -75,7 +75,7 @@ struct panic_handler_data {
 	unsigned long	fb_size;
 };
 
-void lge_gen_key_panic(int key);
+void lge_gen_key_panic(int key, int key_status);
 #ifdef CONFIG_POWER_RESET_MSM
 extern int lge_get_download_mode(void);
 #else
