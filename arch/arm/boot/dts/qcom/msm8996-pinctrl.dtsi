@@ -230,7 +230,8 @@
 				bias-disable;
 			};
 		};
-
+//[ANNA_ISDBT_BRINGUP_S] : duplicated
+/*
 		blsp1_uart3_active: blsp1_uart3_active {
 			mux {
 				pins = "gpio45", "gpio46", "gpio47", "gpio48";
@@ -256,7 +257,8 @@
 				bias-disable;
 			};
 		};
-
+*/
+//[ANNA_ISDBT_BRINGUP_E]
 		blsp1_uart5_active: blsp1_uart5_active {
 			mux {
 				pins = "gpio81", "gpio82";
@@ -282,7 +284,6 @@
 				bias-disable;
 			};
 		};
-
 		blsp1_uart6_active: blsp1_uart6_active {
 			mux {
 				pins = "gpio25", "gpio26", "gpio27", "gpio28";
