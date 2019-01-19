@@ -163,20 +163,22 @@
 			compatible = "android,firmware";
 			fstab {
 				compatible = "android,fstab";
+				/* do not use at O OS upgrade
 				vendor {
 					compatible = "android,vendor";
 					dev = "/dev/block/platform/soc/7464900.sdhci/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
 					fsmgr_flags = "wait";
-					status = "ok";
+					status = "disabled";
 				 };
+				*/
 				 system {
 					compatible = "android,system";
-					dev = "/dev/block/platform/soc/7464900.sdhci/by-name/system";
+					dev = "/dev/block/platform/soc/624000.ufshc/by-name/system";
 					type = "ext4";
-					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = "wait";
+					mnt_flags = "ro,noatime,barrier=1,discard";
+					fsmgr_flags = "wait,verify";
 					status = "ok";
 				};
 
@@ -247,6 +249,15 @@
 		};
 	};
 };
+
+/* move to here before clock_cpu
+	It affects  the order of probing driver
+*/
+&soc {
+	qcom,glink-smem-native-xprt-rpm@68000 {
+	};
+};
+
 
 #include "msm8996-ion.dtsi"
 #include "msm8996-mdss.dtsi"
@@ -704,6 +715,33 @@
 			< 1497600 >,
 			< 1593600 >;
 	};
+/* move to here before clock_cpu
+	It affects  the order of probing driver
+*/
+	rpm_bus: qcom,rpm-smd {
+	};
+	clock_gcc: qcom,gcc@300000 {
+	};
+	qcom,spm@9A10000 {
+	};
+	spmi_bus: qcom,spmi@400f000 {
+	};
+	apc0_pwrcl_mem_acc_vreg: apc0-pwrcl-mem-acc-regulator {
+	};
+	apc1_perfcl_mem_acc_vreg: apc1-perfcl-mem-acc-regulator {
+	};
+	apcc_l3_mem_acc_vreg: apcc-l3-mem-acc-regulator {
+	};
+	gfx_mem_acc_vreg: regulator@007af004 {
+	};
+	kryo0_vreg: regulator@99a2000 {
+	};
+	kryo1_vreg: regulator@99d2000 {
+	};
+	apcc_cpr: cpr3-ctrl@99e8000 {
+	};
+	qcom,smem@86000000 {
+	};
 
 	clock_cpu: qcom,cpu-clock-8996@ {
 		compatible = "qcom,cpu-clock-8996";
@@ -810,6 +848,14 @@
 			 <&mdss_dsi1_pll clk_dsi1pll_byte_clk_mux>,
 			<&mdss_hdmi_pll clk_hdmi_vco_clk>;
 		#clock-cells = <1>;
+	};
+
+/* move to here before clock_gpu
+	It affects  the order of probing driver
+*/
+	gfx_cpr: cpr3-ctrl@838000 {
+	};
+	msm_gpu: qcom,kgsl-3d0@b00000 {
 	};
 
 	clock_gpu: qcom,gpucc@8c0000 {
@@ -2605,7 +2651,7 @@
 			 <&clock_gcc clk_gcc_ce1_ahb_m_clk>,
 			 <&clock_gcc clk_gcc_ce1_axi_m_clk>;
 		qcom,ce-opp-freq = <171430000>;
-		qcom,qsee-reentrancy-support = <2>;
+        qcom,qsee-reentrancy-support = <2>;
 	};
 
 	qcom,qbt1000 {
@@ -2930,7 +2976,7 @@
 		reg = <0x70000 0x1000>;
 		qcom,low-hyst-temp = <100>;
 		qcom,high-hyst-temp = <100>;
-		qcom,polling-interval = <100>;
+		qcom,polling-interval = <50>;
 
 		ea0: ea0 {
 			sensor = <&sensor_information4>;
@@ -4086,3 +4132,12 @@
 #include "msm8996-pm.dtsi"
 #include "msm-arm-smmu-8996.dtsi"
 #include "msm8996-vidc.dtsi"
+
+//[B]fix build error at Pre_ES4 migration
+/delete-node/ &spi_12;
+&soc {
+/delete-node/ pps;
+};
+
+
+//[E]fix build error
