@@ -33,7 +33,9 @@
 #include <linux/hid-debug.h>
 
 #include "hid-ids.h"
-
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+#include <soc/qcom/lge/board_lge.h>
+#endif
 #define unk	KEY_UNKNOWN
 
 static const unsigned char hid_keyboard[256] = {
@@ -783,8 +785,17 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		case 0x0bc: map_key_clear(KEY_MEDIA_REPEAT);	break;
 		case 0x0b9: map_key_clear(KEY_SHUFFLE);		break;
 		case 0x0bf: map_key_clear(KEY_SLOW);		break;
-
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+		case 0x0cd:
+			if (lge_get_alice_friends() == LGE_ALICE_FRIENDS_HM ||
+				lge_get_alice_friends() == LGE_ALICE_FRIENDS_HM_B)
+				map_key_clear(KEY_MEDIA);
+			else
+				map_key_clear(KEY_PLAYPAUSE);
+			break;
+#else
 		case 0x0cd: map_key_clear(KEY_PLAYPAUSE);	break;
+#endif
 		case 0x0cf: map_key_clear(KEY_VOICECOMMAND);	break;
 		case 0x0e0: map_abs_clear(ABS_VOLUME);		break;
 		case 0x0e2: map_key_clear(KEY_MUTE);		break;
@@ -1090,26 +1101,18 @@ void hidinput_hid_event(struct hid_device *hid, struct hid_field *field, struct 
 
 	/*
 	 * Ignore out-of-range values as per HID specification,
-	 * section 5.10 and 6.2.25, when NULL state bit is present.
-	 * When it's not, clamp the value to match Microsoft's input
-	 * driver as mentioned in "Required HID usages for digitizers":
-	 * https://msdn.microsoft.com/en-us/library/windows/hardware/dn672278(v=vs.85).asp
+	 * section 5.10 and 6.2.25.
 	 *
 	 * The logical_minimum < logical_maximum check is done so that we
 	 * don't unintentionally discard values sent by devices which
 	 * don't specify logical min and max.
 	 */
 	if ((field->flags & HID_MAIN_ITEM_VARIABLE) &&
-	    (field->logical_minimum < field->logical_maximum)) {
-		if (field->flags & HID_MAIN_ITEM_NULL_STATE &&
-		    (value < field->logical_minimum ||
-		     value > field->logical_maximum)) {
-			dbg_hid("Ignoring out-of-range value %x\n", value);
-			return;
-		}
-		value = clamp(value,
-			      field->logical_minimum,
-			      field->logical_maximum);
+	    (field->logical_minimum < field->logical_maximum) &&
+	    (value < field->logical_minimum ||
+	     value > field->logical_maximum)) {
+		dbg_hid("Ignoring out-of-range value %x\n", value);
+		return;
 	}
 
 	/*

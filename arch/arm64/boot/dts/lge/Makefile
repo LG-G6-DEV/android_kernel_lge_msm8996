@@ -90,6 +90,14 @@ ifeq ($(CONFIG_MACH_MSM8996_ELSA_GLOBAL_COM),y)
 DTS_TARGET := msm8996-elsa_global_com
 endif
 
+ifeq ($(CONFIG_MACH_MSM8996_ANNA_GLOBAL_COM),y)
+DTS_TARGET := msm8996-anna_global_com
+endif
+
+ifeq ($(CONFIG_MACH_MSM8996_ANNA_KR),y)
+DTS_TARGET := msm8996-anna_kr
+endif
+
 ifeq ($(CONFIG_MACH_MSM8996_ELSA_GLOBAL_LIVE_DUMMY),y)
 DTS_TARGET := msm8996-elsa_global_livedummy
 endif
@@ -156,6 +164,10 @@ endif
 
 ifeq ($(CONFIG_MACH_MSM8996_LUCYE_ACG_US),y)
 DTS_TARGET := msm8996-lucye_acg_us
+endif
+
+ifeq ($(CONFIG_MACH_MSM8996_LUCYE_TRF_US_VZW),y)
+DTS_TARGET := msm8996-lucye_trf_us_vzw
 endif
 
 ALL_DTS := $(notdir $(wildcard echo $(srctree)/$(src)/$(DTS_TARGET)/*.dts))

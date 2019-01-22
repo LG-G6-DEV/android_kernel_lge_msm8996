@@ -109,5 +109,3 @@ obj-$(CONFIG_MSM_REMOTEQDSS) += remoteqdss.o
 obj-$(CONFIG_QCOM_SMCINVOKE) += smcinvoke.o
 obj-$(CONFIG_QCOM_EARLY_RANDOM)	+= early_random.o
 obj-$(CONFIG_MSM_HAB) += hab/
-
-obj-$(CONFIG_DIRTYSANTA_FIXUP) += dirtysanta_fixup.o

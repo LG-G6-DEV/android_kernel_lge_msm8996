@@ -675,7 +675,7 @@ static void gic_send_sgi(u64 cluster_id, u16 tlist, unsigned int irq)
 	       MPIDR_TO_SGI_AFFINITY(cluster_id, 1)	|
 	       tlist << ICC_SGI1R_TARGET_LIST_SHIFT);
 
-	pr_devel("CPU%d: ICC_SGI1R_EL1 %llx\n", smp_processor_id(), val);
+	pr_debug("CPU%d: ICC_SGI1R_EL1 %llx\n", smp_processor_id(), val);
 	gic_write_sgi1r(val);
 }
 
@@ -690,7 +690,7 @@ static void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 	 * Ensure that stores to Normal memory are visible to the
 	 * other CPUs before issuing the IPI.
 	 */
-	wmb();
+	smp_wmb();
 
 	for_each_cpu_mask(cpu, *mask) {
 		u64 cluster_id = cpu_logical_map(cpu) & ~0xffUL;
@@ -733,6 +733,14 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 	val = gic_mpidr_to_affinity(cpu_logical_map(cpu));
 
 	writeq_relaxed(val, reg);
+
+	/*
+	 * It is possible that irq is disabled from SW perspective only,
+	 * because kernel takes lazy disable approach. Therefore check irq
+	 * descriptor if it should kept disabled.
+	 */
+	if (irqd_irq_disabled(d))
+		enabled = 0;
 
 	/*
 	 * If the interrupt was enabled, enabled it again. Otherwise,

@@ -266,8 +266,8 @@ static int prd_os_xline_result_read(struct device *dev,
 	int cur = 0;
 	int ret = 0;
 	u8 w_val = 0x0;
-	int row_size;
-	int col_size;
+	int row_size = 0;
+	int col_size = 0;
     struct sw49408_data *d = to_sw49408_data(dev);
 
 	sw49408_write_value(dev, spr_data_offset,
@@ -646,14 +646,18 @@ static void prd_read_rawdata(struct device *dev, u32 type)
 		ret = prd_print_rawdata(dev, W_Buf, type, 1, &ret);
 		write_file(dev, W_Buf, TIME_INFO_SKIP);
 	} else if (type == U3_M2_NOISE_TEST) {
+		// Frame 2 - P2P Data
 		TOUCH_I("\nFRAME_2\n");
 		read_pt_frame(dev, d, type, PT_FRAME_2);
 		ret = prd_print_rawdata(dev, W_Buf, type, 2, &ret);
 		write_file(dev, W_Buf, TIME_INFO_SKIP);
+		// Frame 4 - Diff Data (Every Frame)
+		/*
 		TOUCH_I("\nFRAME_4\n");
 		read_pt_frame(dev, d, type, PT_FRAME_4);
 		ret = prd_print_rawdata(dev, W_Buf, type, 4, &ret);
 		write_file(dev, W_Buf, TIME_INFO_SKIP);
+		*/
 	} else if (type == U3_M2_DELTA_JITTER) {
 		TOUCH_I("\nFRAME_2\n");
 		read_pt_frame(dev, d, type, PT_FRAME_2);
@@ -931,6 +935,16 @@ static int prd_compare_rawdata(struct device *dev, u32 type)
 		col_size = COL_SIZE;
 		rawdata_buf = M2_Rawdata_buf;
 		break;
+	case U3_M2_NOISE_TEST:
+		snprintf(lower_str, sizeof(lower_str),
+				"U3_M2_Lower_Noise");
+		snprintf(upper_str, sizeof(upper_str),
+				"U3_M2_Upper_Noise");
+		col_size = COL_SIZE;
+		rawdata_buf = M2_Rawdata_buf;
+		break;
+	default :
+		break;
 	}
 
 	sic_get_limit(dev, lower_str, LowerImage);
@@ -940,29 +954,12 @@ static int prd_compare_rawdata(struct device *dev, u32 type)
 		for (j = 0; j < col_size; j++) {
 			if ((rawdata_buf[i*col_size+j] < LowerImage[i][j]) ||
 					(rawdata_buf[i*col_size+j] >
-					UpperImage[i][j])) {
-				if ((type != U0_M1_RAWDATA_TEST) &&
-						(i <= 1 && j <= 4)) {
-					if (rawdata_buf[i*col_size+j] != 0) {
-						result = 1;
-						ret += snprintf(W_Buf + ret,
-							BUF_SIZE - ret,
-							"F [%d][%d] = %d\n",
-							 i, j,
-							rawdata_buf[
-								i * col_size +
-									j]);
-					}
-				} else {
-					result = 1;
-					ret += snprintf(W_Buf + ret, BUF_SIZE -
-							ret,
-							"F [%d][%d] = %d\n",
-							i, j,
-							rawdata_buf[
-								i * col_size +
-									j]);
-				}
+					 UpperImage[i][j])) {
+				result = 1;
+				ret += snprintf(W_Buf + ret, BUF_SIZE -	ret,
+						"F [%d][%d] = %d\n",
+						i, j, rawdata_buf[i * col_size +
+						j]);
 			}
 		}
 	}
@@ -1370,7 +1367,8 @@ static int prd_rawdata_test(struct device *dev, u32 type)
 
 	/* To Do - tune code result check */
 	/*result = */
-	read_tune_code(dev, type);
+	if (type != U3_M2_NOISE_TEST)
+		read_tune_code(dev, type);
 
 	return result;
 }
@@ -1556,6 +1554,7 @@ static ssize_t show_sd(struct device *dev, char *buf)
 	struct sw49408_data *d = to_sw49408_data(dev);
 	int openshort_ret = 0;
 	int rawdata_ret = 0;
+	int noise_ret = 0;
 	int pt_command;
 	int ret = 0;
 	char te_log[64] = {0};
@@ -1626,24 +1625,29 @@ static ssize_t show_sd(struct device *dev, char *buf)
 	rawdata_ret = prd_rawdata_test(dev, U3_M2_RAWDATA_TEST);
 
 	/*
-		DDIC Test - pass : 0, fail : 1
+		U3_M2_NOISE_TEST
+		pass : 0, fail : 1
 	*/
+	TOUCH_I("\nU3 NOISE P2P TEST\n");
+	noise_ret = prd_rawdata_test(dev, U3_M2_NOISE_TEST);
 
 	ret = snprintf(buf, PAGE_SIZE,
 			"\n========RESULT=======\n");
 	TOUCH_I("========RESULT=======\n");
-	if (rawdata_ret == 0 && (!(tc_status_val >> 28) & 0x1)) {
+	if (rawdata_ret == 0 && (!(tc_status_val >> 28) & 0x1) && noise_ret == 0) {
 		ret += snprintf(buf + ret, PAGE_SIZE - ret,
 				"Raw Data : Pass\n");
 		TOUCH_I("Raw Data : Pass\n");
 	} else {
 		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"Raw Data : Fail (%d/%d)\n",
+				"Raw Data : Fail (%d/%d/%d)\n",
 				(rawdata_ret) ? 0 : 1,
-				((tc_status_val >> 28) & 0x1) ? 0 : 1);
-		TOUCH_I("Raw Data : Fail (%d/%d)\n",
+				((tc_status_val >> 28) & 0x1) ? 0 : 1,
+				(noise_ret) ? 0 : 1);
+		TOUCH_I("Raw Data : Fail (%d/%d/%d)\n",
 				(rawdata_ret) ? 0 : 1,
-				((tc_status_val >> 28) & 0x1) ? 0 : 1);
+				((tc_status_val >> 28) & 0x1) ? 0 : 1,
+				(noise_ret) ? 0 : 1);
 	}
 	if (openshort_ret == 0) {
 		ret += snprintf(buf + ret, PAGE_SIZE - ret,
@@ -2159,6 +2163,9 @@ static ssize_t show_lpwg_sd(struct device *dev, char *buf)
 	int m2_rawdata_ret = 0;
 	int pt_command;
 	int ret = 0;
+
+	if (ts->role.mfts_lpwg)
+		touch_msleep(500);
 
 	/* file create , time log */
 	write_file(dev, "\nShow_lpwg_sd Test Start", TIME_INFO_SKIP);

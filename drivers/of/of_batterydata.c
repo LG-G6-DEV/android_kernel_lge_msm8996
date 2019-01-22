@@ -19,6 +19,9 @@
 #include <linux/types.h>
 #include <linux/batterydata-lib.h>
 #include <linux/power_supply.h>
+#ifdef CONFIG_LGE_PM_EMBEDDED_BATT_ID_ADC
+#include <soc/qcom/lge/power/lge_board_revision.h>
+#endif
 
 static int of_batterydata_read_lut(const struct device_node *np,
 			int max_cols, int max_rows, int *ncols, int *nrows,
@@ -309,8 +312,7 @@ static int64_t of_batterydata_convert_battery_id_kohm(int batt_id_uv,
 
 	return resistor_value_kohm;
 }
-
-#if defined(CONFIG_MACH_MSM8996_ELSA) || defined(CONFIG_MACH_MSM8996_H1)
+#if defined(CONFIG_MACH_MSM8996_ELSA) || defined(CONFIG_MACH_MSM8996_H1) || defined(CONFIG_MACH_MSM8996_ANNA)
 struct device_node *of_batterydata_get_best_profile(
 		const struct device_node *batterydata_container_node,
 		const char  *batt_type)
@@ -355,7 +357,8 @@ struct device_node *of_batterydata_get_best_profile(
 	struct batt_ids batt_ids;
 	struct device_node *node, *best_node = NULL;
 #ifdef CONFIG_LGE_PM_EMBEDDED_BATT_ID_ADC
-	struct device_node *last_node;
+	struct device_node *last_node = NULL;
+	enum hw_rev_no revid = lge_get_board_rev_no();
 #endif
 	struct power_supply *psy;
 	const char *battery_type = NULL;
@@ -407,7 +410,11 @@ struct device_node *of_batterydata_get_best_profile(
 			rc = of_batterydata_read_batt_id_kohm(node,
 							"qcom,batt-id-kohm",
 							&batt_ids);
-			if (rc)
+			if (rc
+#ifdef CONFIG_LGE_PM_EMBEDDED_BATT_ID_ADC
+				|| (revid >= HW_REV_1_0 && batt_ids.kohm[0] == 0)
+#endif
+			)
 				continue;
 			for (i = 0; i < batt_ids.num; i++) {
 				delta = abs(batt_ids.kohm[i] - batt_id_kohm);
@@ -429,7 +436,7 @@ struct device_node *of_batterydata_get_best_profile(
 			}
 		}
 #ifdef CONFIG_LGE_PM_EMBEDDED_BATT_ID_ADC
-			last_node = node;
+		last_node = node;
 #endif
 	}
 
@@ -437,6 +444,10 @@ struct device_node *of_batterydata_get_best_profile(
 		pr_err("No battery data found\n");
 #ifdef CONFIG_LGE_PM_EMBEDDED_BATT_ID_ADC
 		//If not found battery data, use last battery profile.
+		if (last_node == NULL) {
+			pr_err("No default battery profile found\n");
+			return NULL;
+		}
 		best_node = last_node;
 		rc = of_property_read_string(best_node, "qcom,battery-type",
 						&battery_type);
@@ -466,7 +477,6 @@ struct device_node *of_batterydata_get_best_profile(
 	return best_node;
 }
 #endif
-
 int of_batterydata_read_data(struct device_node *batterydata_container_node,
 				struct bms_battery_data *batt_data,
 				int batt_id_uv)

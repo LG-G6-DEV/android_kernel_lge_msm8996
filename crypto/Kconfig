@@ -21,6 +21,11 @@ if CRYPTO
 
 comment "Crypto core or helper"
 
+config CRYPTO_CCMODE
+	bool "MDFPP CC Mode"
+	help
+	  This options enables cc mode for MDFPP compliance mode.
+
 config CRYPTO_FIPS
 	bool "FIPS 200 compliance"
 	depends on (CRYPTO_ANSI_CPRNG || CRYPTO_DRBG) && !CRYPTO_MANAGER_DISABLE_TESTS
@@ -590,6 +595,7 @@ config CRYPTO_SHA256_SPARC64
 	  SHA-256 secure hash standard (DFIPS 180-2) implemented
 	  using sparc64 crypto instructions, when available.
 
+
 config CRYPTO_SHA2_ARM_CE
 	tristate "SHA-224/256 digest algorithm (ARM v8 Crypto Extensions)"
 	depends on ARM && KERNEL_MODE_NEON
@@ -598,7 +604,7 @@ config CRYPTO_SHA2_ARM_CE
 	help
 	  SHA-256 secure hash standard (DFIPS 180-2) implemented
 	  using special ARMv8 Crypto Extensions.
-
+	  
 config CRYPTO_SHA512
 	tristate "SHA384 and SHA512 digest algorithms"
 	select CRYPTO_HASH
@@ -782,7 +788,7 @@ config CRYPTO_AES_SPARC64
 	  for some popular block cipher mode is supported too, including
 	  ECB and CBC.
 
-config CRYPTO_AES_ARM
+	config CRYPTO_AES_ARM
 	tristate "AES cipher algorithms (ARM-asm)"
 	depends on ARM
 	select CRYPTO_ALGAPI
@@ -1460,7 +1466,7 @@ menuconfig CRYPTO_DRBG_MENU
 	  NIST SP800-90A compliant DRBG. In the following submenu, one or
 	  more of the DRBG types must be selected.
 
-if CRYPTO_DRBG_MENU
+
 
 config CRYPTO_DRBG_HMAC
 	bool "Enable HMAC DRBG"
@@ -1481,12 +1487,43 @@ config CRYPTO_DRBG_CTR
 	help
 	  Enable the CTR DRBG variant as defined in NIST SP800-90A.
 
+if CRYPTO_DRBG_MENU
+
+
+
 config CRYPTO_DRBG
 	tristate
 	default CRYPTO_DRBG_MENU if (CRYPTO_DRBG_HMAC || CRYPTO_DRBG_HASH || CRYPTO_DRBG_CTR)
 	select CRYPTO_RNG
 
 endif	# if CRYPTO_DRBG_MENU
+
+config LGCRYPTO_FIPS_ENABLE
+    bool "FIPS140-2 compliant build"
+    default n
+    help
+          This flag is used to make current build FIPS140-2
+          compliant. This flag will enable the patch of code
+          which will perform this task. Please select Y here
+          to enable.
+
+config LGECRYPTO_FIPS_ADDED_SIGNATURE_SIZE
+    int "FIPS integrity check Image size"
+    default 604
+
+config FIPS_RECOMPILE
+	bool "Recompile FIPS140-2 certified binaries"
+	default n
+	depends on FIPS_ENABLE
+	help
+	  This flag is to make current build recompile FIPS140-2
+          certified crypto binary from source. Please select Y here to
+          enable. In default value n, the compiler will use
+          pre-compiled binaries. Note that select Y may invalidate
+          existing FIPS140-2 certification but the recompiled crypto
+          library remains FIPS certifable. The flag is only
+          effective when flag FIPS_ENABLE is enabled.
+
 
 config CRYPTO_USER_API
 	tristate

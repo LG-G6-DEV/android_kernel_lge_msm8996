@@ -274,6 +274,22 @@ static void sas_eh_finish_cmd(struct scsi_cmnd *cmd)
 	scsi_eh_finish_cmd(cmd, &sas_ha->eh_done_q);
 }
 
+static void sas_eh_defer_cmd(struct scsi_cmnd *cmd)
+{
+	struct domain_device *dev = cmd_to_domain_dev(cmd);
+	struct sas_ha_struct *ha = dev->port->ha;
+	struct sas_task *task = TO_SAS_TASK(cmd);
+
+	if (!dev_is_sata(dev)) {
+		sas_eh_finish_cmd(cmd);
+		return;
+	}
+
+	/* report the timeout to libata */
+	sas_end_task(cmd, task);
+	list_move_tail(&cmd->eh_entry, &ha->eh_ata_q);
+}
+
 static void sas_scsi_clear_queue_lu(struct list_head *error_q, struct scsi_cmnd *my_cmd)
 {
 	struct scsi_cmnd *cmd, *n;
@@ -281,7 +297,7 @@ static void sas_scsi_clear_queue_lu(struct list_head *error_q, struct scsi_cmnd 
 	list_for_each_entry_safe(cmd, n, error_q, eh_entry) {
 		if (cmd->device->sdev_target == my_cmd->device->sdev_target &&
 		    cmd->device->lun == my_cmd->device->lun)
-			sas_eh_finish_cmd(cmd);
+			sas_eh_defer_cmd(cmd);
 	}
 }
 
@@ -671,12 +687,12 @@ static void sas_eh_handle_sas_errors(struct Scsi_Host *shost, struct list_head *
 		case TASK_IS_DONE:
 			SAS_DPRINTK("%s: task 0x%p is done\n", __func__,
 				    task);
-			sas_eh_finish_cmd(cmd);
+			sas_eh_defer_cmd(cmd);
 			continue;
 		case TASK_IS_ABORTED:
 			SAS_DPRINTK("%s: task 0x%p is aborted\n",
 				    __func__, task);
-			sas_eh_finish_cmd(cmd);
+			sas_eh_defer_cmd(cmd);
 			continue;
 		case TASK_IS_AT_LU:
 			SAS_DPRINTK("task 0x%p is at LU: lu recover\n", task);
@@ -687,7 +703,7 @@ static void sas_eh_handle_sas_errors(struct Scsi_Host *shost, struct list_head *
 					    "recovered\n",
 					    SAS_ADDR(task->dev),
 					    cmd->device->lun);
-				sas_eh_finish_cmd(cmd);
+				sas_eh_defer_cmd(cmd);
 				sas_scsi_clear_queue_lu(work_q, cmd);
 				goto Again;
 			}
