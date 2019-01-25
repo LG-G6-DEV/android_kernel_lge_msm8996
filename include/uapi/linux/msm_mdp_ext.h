@@ -143,6 +143,9 @@ VALIDATE/COMMIT FLAG CONFIGURATION
  */
 #define MDP_COMMIT_SYNC_FENCE_WAIT		0x04
 
+/* Flag to update brightness when commit */
+#define MDP_COMMIT_UPDATE_BRIGHTNESS		0x40
+
 /*
  * Flag to indicate that rectangle number is being assigned
  * by userspace in multi-rectangle mode
@@ -482,6 +485,9 @@ struct mdp_layer_commit_v1 {
 	 * Represents number of Destination scaler data provied by userspace.
 	 */
 	uint32_t		dest_scaler_cnt;
+
+	/* Backlight level that would update when display commit */
+	uint32_t		bl_level;
 
 	/* FRC info per device which contains frame count and timestamp */
 	struct mdp_frc_info __user *frc_info;
