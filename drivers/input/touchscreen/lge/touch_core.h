@@ -330,6 +330,7 @@ struct state_info {
 struct touch_driver {
 	int (*probe)(struct device *dev);
 	int (*remove)(struct device *dev);
+	int (*shutdown)(struct device *dev);
 	int (*suspend)(struct device *dev);
 	int (*resume)(struct device *dev);
 	int (*init)(struct device *dev);
@@ -490,6 +491,7 @@ struct touch_core_data {
 	struct notifier_block notif;
 	unsigned long notify_event;
 	int notify_data;
+	struct atomic_notify_event notify_event_arr[ATOMIC_NOTIFY_EVENT_SIZE];
 #if defined(CONFIG_HAS_EARLYSUSPEND)
 	struct early_suspend early_suspend;
 #elif defined(CONFIG_FB)
@@ -579,6 +581,8 @@ extern int touch_get_platform_data(struct touch_core_data *ts);
 extern int touch_init_sysfs(struct touch_core_data *ts);
 extern void touch_interrupt_control(struct device *dev, int on_off);
 extern void touch_report_all_event(struct touch_core_data *ts);
+extern void touch_suspend(struct device *dev);
+extern void touch_resume(struct device *dev);
 
 enum touch_device_type {
 	TYPE_LG4946 = 0,

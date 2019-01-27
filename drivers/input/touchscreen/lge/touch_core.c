@@ -45,9 +45,6 @@ u32 touch_debug_mask = BASE_INFO;
 module_param_named(debug_mask, touch_debug_mask, int, S_IRUGO|S_IWUSR|S_IWGRP);
 
 static void touch_send_uevent(struct touch_core_data *ts, int type);
-static void touch_suspend(struct device *dev);
-static void touch_resume(struct device *dev);
-
 
 static void touch_report_cancel_event(struct touch_core_data *ts)
 {
@@ -440,7 +437,7 @@ error:
 	return ret;
 }
 
-static void touch_suspend(struct device *dev)
+void touch_suspend(struct device *dev)
 {
 	struct touch_core_data *ts = to_touch_core(dev);
 	int ret = 0;
@@ -462,7 +459,7 @@ static void touch_suspend(struct device *dev)
 		mod_delayed_work(ts->wq, &ts->init_work, 0);
 }
 
-static void touch_resume(struct device *dev)
+void touch_resume(struct device *dev)
 {
 	struct touch_core_data *ts = to_touch_core(dev);
 	int ret = 0;
@@ -714,8 +711,15 @@ static void touch_atomic_notifer_work_func(struct work_struct *notify_work)
 	struct touch_core_data *ts =
 		container_of(to_delayed_work(notify_work),
 				struct touch_core_data, notify_work);
+	struct atomic_notify_event *arr = ts->notify_event_arr;
+	int i = 0;
 
-	touch_notify(ts, ts->notify_event, &ts->notify_data);
+	for (i = 0; i < ATOMIC_NOTIFY_EVENT_SIZE; i++) {
+		if (arr[i].event != NO_EVENT) {
+			touch_notify(ts, arr[i].event, &(arr[i].data));
+			arr[i].event = NO_EVENT;
+		}
+	}
 }
 
 static int touch_atomic_notifier_callback(struct notifier_block *this,
@@ -723,9 +727,26 @@ static int touch_atomic_notifier_callback(struct notifier_block *this,
 {
 	struct touch_core_data *ts =
 		container_of(this, struct touch_core_data, atomic_notif);
+	struct atomic_notify_event *arr = ts->notify_event_arr;
 
-	ts->notify_event = event;
-	ts->notify_data = *(int *)data;
+	switch (event) {
+	case NOTIFY_CONNECTION:
+		arr[ATOMIC_NOTIFY_CONNECTION].event = event;
+		arr[ATOMIC_NOTIFY_CONNECTION].data = *(int *)data;
+		break;
+	case NOTIFY_WIRELEES:
+		arr[ATOMIC_NOTIFY_WIRELESS].event = event;
+		arr[ATOMIC_NOTIFY_WIRELESS].data = *(int *)data;
+		break;
+	case NOTIFY_EARJACK:
+		arr[ATOMIC_NOTIFY_EARJACK].event = event;
+		arr[ATOMIC_NOTIFY_EARJACK].data = *(int *)data;
+		break;
+	default:
+		TOUCH_I("%s: unknown event(%lu)\n", __func__, event);
+		return 0;
+	}
+
 	queue_delayed_work(ts->wq, &ts->notify_work, 0);
 
 	return 0;
@@ -786,7 +807,11 @@ static int touch_core_probe_normal(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	ts->driver->probe(ts->dev);
+	ret = ts->driver->probe(ts->dev);
+	if (ret) {
+		TOUCH_E("failed to device probe\n");
+		return ret;
+	}
 
 	/* set defalut lpwg value because of AAT */
 	ts->lpwg.screen = 1;
@@ -833,8 +858,16 @@ static int touch_core_probe_normal(struct platform_device *pdev)
 	return 0;
 
 error_request_irq:
+	free_irq(ts->irq, ts);
 error_init_input:
+	if (ts->input) {
+		input_mt_destroy_slots(ts->input);
+		input_free_device(ts->input);
+	}
 error_init_work:
+	if (ts->wq)
+		destroy_workqueue(ts->wq);
+
 	return ret;
 }
 
@@ -853,7 +886,11 @@ static int touch_core_probe_charger(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	ts->driver->probe(ts->dev);
+	ret = ts->driver->probe(ts->dev);
+	if (ret) {
+		TOUCH_E("failed to device probe\n");
+		return ret;
+	}
 
 	touch_init_locks(ts);
 	ret = touch_init_works(ts);
@@ -881,8 +918,57 @@ static int touch_core_probe(struct platform_device *pdev)
 
 static int touch_core_remove(struct platform_device *pdev)
 {
+	struct touch_core_data *ts;
+
 	TOUCH_TRACE();
+
+	ts = (struct touch_core_data *) pdev->dev.platform_data;
+
+	TOUCH_I("%s\n", __func__);
+
+#if defined(CONFIG_HAS_EARLYSUSPEND)
+	unregister_early_suspend(&ts->early_suspend);
+#elif defined(CONFIG_FB)
+	fb_unregister_client(&ts->fb_notif);
+#endif
+
+	kobject_del(&ts->kobj);
+
+	touch_atomic_notifier_unregister(&ts->atomic_notif);
+
+	destroy_workqueue(ts->wq);
+	wake_lock_destroy(&ts->lpwg_wake_lock);
+
+	touch_interrupt_control(ts->dev, INTERRUPT_DISABLE);
+	free_irq(ts->irq, ts);
+
+	input_unregister_device(ts->input);
+
+	ts->driver->remove(ts->dev);
+	ts->driver->power(ts->dev, POWER_OFF);
+
+	devm_kfree(ts->dev, ts);
+
 	return 0;
+}
+
+void touch_core_shutdown(struct platform_device *pdev)
+{
+	struct touch_core_data *ts;
+
+	TOUCH_TRACE();
+
+	ts = (struct touch_core_data *) pdev->dev.platform_data;
+
+	TOUCH_I("%s\n", __func__);
+
+	if (ts->dev == NULL)
+		return;
+
+	touch_interrupt_control(ts->dev, INTERRUPT_DISABLE);
+
+	if (ts->driver->shutdown)
+		ts->driver->shutdown(ts->dev);
 }
 
 static struct platform_driver touch_core_driver = {
@@ -895,6 +981,7 @@ static struct platform_driver touch_core_driver = {
 	},
 	.probe = touch_core_probe,
 	.remove = touch_core_remove,
+	.shutdown = touch_core_shutdown,
 };
 
 static void touch_core_async_init(void *data, async_cookie_t cookie)

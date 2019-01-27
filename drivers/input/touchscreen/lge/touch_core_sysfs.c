@@ -468,6 +468,7 @@ static ssize_t store_sp_link_touch_off(struct device *dev,
 		TOUCH_I("SP Mirroring Connected\n");
 	} else if(atomic_read(&ts->state.sp_link) == SP_DISCONNECT) {
 		touch_interrupt_control(ts->dev, INTERRUPT_ENABLE);
+		mod_delayed_work(ts->wq, &ts->init_work, 0);
 		TOUCH_I("SP Mirroring Disconnected\n");
 	}
 
@@ -649,15 +650,26 @@ int touch_init_sysfs(struct touch_core_data *ts)
 	ret = kobject_init_and_add(&ts->kobj, &touch_kobj_type,
 			dev->kobj.parent, "%s", LGE_TOUCH_NAME);
 
+	if (ret < 0) {
+		TOUCH_E("failed to initialize kobject\n");
+		goto error;
+	}
+
 	ret = sysfs_create_group(&ts->kobj, &touch_attribute_group);
 
 	if (ret < 0) {
 		TOUCH_E("failed to create sysfs\n");
-		return ret;
+		goto error;
 	}
 
-	if (ts->driver->register_sysfs)
+	if (ts->driver->register_sysfs) {
 		ret = ts->driver->register_sysfs(dev);
+		if (ret < 0) {
+			TOUCH_E("failed to device create sysfs\n");
+			goto error;
+		}
+	}
 
+error:
 	return ret;
 }
