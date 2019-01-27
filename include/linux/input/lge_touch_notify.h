@@ -3,6 +3,7 @@
 
 #include <linux/notifier.h>
 
+#define NO_EVENT			0x00
 
 /* the dsv on */
 #define LCD_EVENT_TOUCH_LPWG_ON		0x01
@@ -36,6 +37,18 @@
 
 struct touch_event {
 	void *data;
+};
+
+enum {
+	ATOMIC_NOTIFY_CONNECTION = 0,
+	ATOMIC_NOTIFY_WIRELESS,
+	ATOMIC_NOTIFY_EARJACK,
+	ATOMIC_NOTIFY_EVENT_SIZE,
+};
+
+struct atomic_notify_event {
+	unsigned long event;
+	int data;
 };
 
 int touch_blocking_notifier_register(struct notifier_block *nb);
