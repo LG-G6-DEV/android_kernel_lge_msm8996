@@ -11,16 +11,6 @@ menuconfig INPUT_FINGERPRINT
 
 if INPUT_FINGERPRINT
 
-config INPUT_FINGERPRINT_FPC_BTP
-	tristate "FPC1022 fingerprint sensor support by CrucialSoft"
-	depends on SPI_MASTER
-	help
-	 Say Y here if you want to support FPC1022
-	 connected via an SPI bus.
-
-	 To compile this driver as a module, choose M here: the module
-	 will be called FPC1022.
-
 config INPUT_FINGERPRINT_FPC1020
 	tristate "FPC1022 fingerprint sensor support by FPC"
 	depends on SPI_MASTER
