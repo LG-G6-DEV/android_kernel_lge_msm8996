@@ -63,6 +63,8 @@
 		qcom,mdss-dsi-te-using-te-pin;
 		qcom,suspend-ulps-enabled;
 		qcom,mdss-dsi-lp11-init;
+		qcom,ulps-enabled;
+		qcom,panel-allow-phy-poweroff;
 		qcom,mdss-dsi-tx-eot-append;
 
 		/* Partial update */

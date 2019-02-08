@@ -66,6 +66,7 @@
 		qcom,mdss-dsi-te-using-te-pin;
 		qcom,ulps-enabled;
 		qcom,mdss-dsi-lp11-init;
+		qcom,panel-allow-phy-poweroff;
 
 		qcom,mdss-dsi-on-command = [
 			/* Manufacturer Command Protection */

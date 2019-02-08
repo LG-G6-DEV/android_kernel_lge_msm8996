@@ -68,6 +68,7 @@
 		qcom,ulps-enabled;
 		qcom,suspend-ulps-enabled;
 		qcom,mdss-dsi-lp11-init;
+		qcom,panel-allow-phy-poweroff;
 		qcom,mdss-dsi-tx-eot-append;
 		qcom,mdss-dsi-vcom-command = [
 			/* Power Control 5 */
