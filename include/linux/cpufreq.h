@@ -651,6 +651,8 @@ int cpufreq_generic_init(struct cpufreq_policy *policy,
  *                         CPUFREQ STATS                             *
  *********************************************************************/
 
+#ifdef CONFIG_CPU_FREQ_STAT
+
 void acct_update_power(struct task_struct *p, cputime_t cputime);
 void cpufreq_task_stats_init(struct task_struct *p);
 void cpufreq_task_stats_alloc(struct task_struct *p);
