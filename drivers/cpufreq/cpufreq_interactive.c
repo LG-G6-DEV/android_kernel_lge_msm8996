@@ -346,77 +346,18 @@ static void cpufreq_interactive_timer(unsigned long data)
 	unsigned int loadadjfreq;
 	unsigned int index;
 	unsigned long flags;
-	unsigned long max_cpu;
-	int cpu, i;
-	int new_load_pct = 0;
-	int prev_l, pred_l = 0;
-	struct cpufreq_govinfo govinfo;
-	bool skip_hispeed_logic, skip_min_sample_time;
-	bool jump_to_max_no_ts = false;
-	bool start_hyst = true;
+	u64 max_fvtime;
 
-	if (!down_read_trylock(&ppol->enable_sem))
+	if (!down_read_trylock(&pcpu->enable_sem))
 		return;
 	if (!pcpu->governor_enabled)
 		goto exit;
 
-	now = ktime_to_us(ktime_get());
-
-	spin_lock_irqsave(&ppol->target_freq_lock, flags);
-	spin_lock(&ppol->load_lock);
-
-	skip_hispeed_logic =
-		tunables->ignore_hispeed_on_notif && ppol->notif_pending;
-	skip_min_sample_time = tunables->fast_ramp_down && ppol->notif_pending;
-	ppol->notif_pending = false;
-	now = ktime_to_us(ktime_get());
-	ppol->last_evaluated_jiffy = get_jiffies_64();
-
-	if (tunables->use_sched_load)
-		sched_get_cpus_busy(sl, ppol->policy->cpus);
-	max_cpu = cpumask_first(ppol->policy->cpus);
-	i = 0;
-	for_each_cpu(cpu, ppol->policy->cpus) {
-		pcpu = &per_cpu(cpuinfo, cpu);
-		if (tunables->use_sched_load) {
-			t_prevlaf = sl_busy_to_laf(ppol, sl[i].prev_load);
-			prev_l = t_prevlaf / ppol->target_freq;
-			if (tunables->enable_prediction) {
-				t_predlaf = sl_busy_to_laf(ppol,
-						sl[i].predicted_load);
-				pred_l = t_predlaf / ppol->target_freq;
-			}
-			if (sl[i].prev_load)
-				new_load_pct = sl[i].new_task_load * 100 /
-							sl[i].prev_load;
-			else
-				new_load_pct = 0;
-		} else {
-			now = update_load(cpu);
-			delta_time = (unsigned int)
-				(now - pcpu->cputime_speedadj_timestamp);
-			if (WARN_ON_ONCE(!delta_time))
-				continue;
-			cputime_speedadj = pcpu->cputime_speedadj;
-			do_div(cputime_speedadj, delta_time);
-			t_prevlaf = (unsigned int)cputime_speedadj * 100;
-			prev_l = t_prevlaf / ppol->target_freq;
-		}
-
-		/* find max of loadadjfreq inside policy */
-		if (t_prevlaf > prev_laf) {
-			prev_laf = t_prevlaf;
-			max_cpu = cpu;
-		}
-		pred_laf = max(t_predlaf, pred_laf);
-
-		cpu_load = max(prev_l, pred_l);
-		pol_load = max(pol_load, cpu_load);
-		trace_cpufreq_interactive_cpuload(cpu, cpu_load, new_load_pct,
-						  prev_l, pred_l);
-
-		/* save loadadjfreq for notification */
-		pcpu->loadadjfreq = max(t_prevlaf, t_predlaf);
+	spin_lock_irqsave(&pcpu->load_lock, flags);
+	now = update_load(data);
+	delta_time = (unsigned int)(now - pcpu->cputime_speedadj_timestamp);
+	cputime_speedadj = pcpu->cputime_speedadj;
+	spin_unlock_irqrestore(&pcpu->load_lock, flags);
 
 	if (WARN_ON_ONCE(!delta_time))
 		goto rearm;
@@ -443,19 +384,10 @@ static void cpufreq_interactive_timer(unsigned long data)
 			new_freq = tunables->hispeed_freq;
 	}
 
-	if (now - ppol->max_freq_hyst_start_time <
-	    tunables->max_freq_hysteresis) {
-		if (new_freq < ppol->policy->max &&
-				ppol->policy->max <= tunables->hispeed_freq)
-			start_hyst = false;
-		new_freq = max(tunables->hispeed_freq, new_freq);
-	}
-
-	if (!skip_hispeed_logic &&
-	    ppol->target_freq >= tunables->hispeed_freq &&
-	    new_freq > ppol->target_freq &&
-	    now - ppol->hispeed_validate_time <
-	    freq_to_above_hispeed_delay(tunables, ppol->target_freq)) {
+	if (pcpu->policy->cur >= tunables->hispeed_freq &&
+	    new_freq > pcpu->policy->cur &&
+	    now - pcpu->pol_hispeed_val_time <
+	    freq_to_above_hispeed_delay(tunables, pcpu->policy->cur)) {
 		trace_cpufreq_interactive_notyet(
 			data, cpu_load, pcpu->target_freq,
 			pcpu->policy->cur, new_freq);
@@ -505,11 +437,8 @@ static void cpufreq_interactive_timer(unsigned long data)
 			pcpu->loc_floor_val_time = now;
 	}
 
-	if (start_hyst && new_freq >= ppol->policy->max && !jump_to_max_no_ts)
-		ppol->max_freq_hyst_start_time = now;
-
-	if (ppol->target_freq == new_freq &&
-			ppol->target_freq <= ppol->policy->cur) {
+	if (pcpu->target_freq == new_freq &&
+			pcpu->target_freq <= pcpu->policy->cur) {
 		trace_cpufreq_interactive_already(
 			data, cpu_load, pcpu->target_freq,
 			pcpu->policy->cur, new_freq);
@@ -1358,6 +1287,19 @@ static int __init cpufreq_interactive_init(void)
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 	int ret = 0;
+
+	/* Initalize per-cpu timers */
+	for_each_possible_cpu(i) {
+		pcpu = &per_cpu(cpuinfo, i);
+		init_timer_deferrable(&pcpu->cpu_timer);
+		pcpu->cpu_timer.function = cpufreq_interactive_timer;
+		pcpu->cpu_timer.data = i;
+		init_timer(&pcpu->cpu_slack_timer);
+		pcpu->cpu_slack_timer.function = cpufreq_interactive_nop_timer;
+		spin_lock_init(&pcpu->load_lock);
+		spin_lock_init(&pcpu->target_freq_lock);
+		init_rwsem(&pcpu->enable_sem);
+	}
 
 	/* Initalize per-cpu timers */
 	for_each_possible_cpu(i) {
