@@ -391,10 +391,10 @@ config BACKLIGHT_LM3697
 	  PWM brightness control is also supported.
 
 config BACKLIGHT_PARTIAL_MODE_SUPPORTED
-        bool "Backlight partial mode for TI LM3697"
-        default n
-        help
-          Support LM3697 Partial control mode.
+	bool "Backlight partial mode for TI LM3697"
+	default n
+	help
+	  Support LM3697 Partial control mode.
 
 config BACKLIGHT_LP855X
 	tristate "Backlight driver for TI LP855X"

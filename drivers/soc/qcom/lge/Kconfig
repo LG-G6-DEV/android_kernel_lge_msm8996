@@ -517,6 +517,13 @@ config LGE_MSM8996_ENABLE_VENDOR
 	help
 	  Enables the /vendor partition in device-tree fstab
 
+config LGE_QFPROM_INTERFACE
+	bool "Support qfprom interface"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE QFPROM DRIVER.
+
 endmenu
 
 source "drivers/soc/qcom/lge/power/Kconfig"

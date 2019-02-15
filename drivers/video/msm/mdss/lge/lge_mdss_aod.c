@@ -157,10 +157,8 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 #if defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
 		// video and command mode switch
 		if(mfd->panel_info->dynamic_switch_pending == true && blank_mode == FB_BLANK_UNBLANK) {
-			if(mfd->panel_info->mode_switch == VIDEO_TO_CMD){
-				labibb_ctrl = false;
+			if(mfd->panel_info->mode_switch == VIDEO_TO_CMD)
 				cmd_status = SWITCH_VIDEO_TO_CMD;
-			}
 			if(mfd->panel_info->mode_switch == CMD_TO_VIDEO){
 				cmd_status = SWITCH_CMD_TO_VIDEO;
 				labibb_ctrl = true;
@@ -173,7 +171,6 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 		/* U0_BLANK -> U2_UNBLANK*/
 		if (blank_mode == FB_BLANK_UNBLANK && aod_node == 1 && aod_keep_u2 == AOD_KEEP_U2) {
 			cmd_status = ON_AND_AOD;
-			labibb_ctrl = false;
 			next_mode = AOD_PANEL_MODE_U2_UNBLANK;
 		}
 		/* U0_BLANK -> U3_UNBLANK */
@@ -229,7 +226,6 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 		if (blank_mode == FB_BLANK_POWERDOWN && (aod_node == 0 || mfd->panel_info->dynamic_switch_pending == true)) {
 #ifdef CONFIG_LGE_DISPLAY_BL_EXTENDED
 			cmd_status = ON_AND_AOD;
-			labibb_ctrl = false;
 #else
 			cmd_status = OFF_CMD;
 #endif
@@ -261,11 +257,7 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 			(blank_mode == FB_BLANK_UNBLANK && aod_node == 0 && aod_keep_u2 == AOD_MOVE_TO_U3)) {
 			cmd_status = AOD_CMD_DISABLE;
 			next_mode = AOD_PANEL_MODE_U3_UNBLANK;
-#ifdef CONFIG_LGE_DISPLAY_BL_EXTENDED
-			labibb_ctrl = true;
-#else
 			labibb_ctrl = false;
-#endif
 		}
 		/* U2_BLANK -> U2_UNBLANK */
 		else if ((blank_mode == FB_BLANK_UNBLANK && aod_node == 0) ||
@@ -286,7 +278,7 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 		if(mfd->panel_info->dynamic_switch_pending == true && blank_mode == FB_BLANK_POWERDOWN) {
 			cmd_status = OFF_CMD;
 			next_mode = AOD_PANEL_MODE_U0_BLANK;
-			labibb_ctrl = false;
+			//labibb_ctrl = true;
 			break;
 		}
 		// normal power mode transition
@@ -337,11 +329,7 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 			cmd_status = AOD_CMD_ENABLE;
 #endif
 			next_mode = AOD_PANEL_MODE_U2_BLANK;
-#ifdef CONFIG_LGE_DISPLAY_BL_EXTENDED
-			labibb_ctrl = true;
-#else
 			labibb_ctrl = false;
-#endif
 		}
 		else {
 			rc = AOD_RETURN_ERROR_NO_SCENARIO;
