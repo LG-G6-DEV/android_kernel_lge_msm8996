@@ -74,7 +74,6 @@ struct fpc1020_data {
 	struct pinctrl_state *pinctrl_state[ARRAY_SIZE(pctl_names)];
 	struct regulator *vreg[ARRAY_SIZE(vreg_conf)];
 
-	struct wakeup_source ttw_wl;
 	int irq_gpio;
 	int rst_gpio;
 	struct mutex lock; /* To set/get exported values in sysfs */
@@ -430,7 +429,7 @@ static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 	dev_dbg(fpc1020->dev, "%s\n", __func__);
 
 	if (atomic_read(&fpc1020->wakeup_enabled)) {
-		__pm_wakeup_event(&fpc1020->ttw_wl,
+		pm_wakeup_event(fpc1020->dev,
 					msecs_to_jiffies(FPC_TTW_HOLD_TIME));
 	}
 
@@ -567,7 +566,7 @@ static int fpc1020_probe(struct platform_device *pdev)
 		input_free_device(fpc1020->input);
 		goto exit;
 	}
-
+  
 	mutex_init(&fpc1020->lock);
 	rc = devm_request_threaded_irq(dev, gpio_to_irq(fpc1020->irq_gpio),
 			NULL, fpc1020_irq_handler, irqf,
@@ -583,8 +582,6 @@ static int fpc1020_probe(struct platform_device *pdev)
 	/* Request that the interrupt should be wakeable */
 	enable_irq_wake(gpio_to_irq(fpc1020->irq_gpio));
 
-	wakeup_source_init(&fpc1020->ttw_wl, "fpc_ttw_wl");
-
 	/* create sysfs grou under virtual input*/
 	rc = sysfs_create_group(&fpc1020->input->dev.kobj, &attribute_group);
 	if (rc) {
@@ -599,6 +596,8 @@ static int fpc1020_probe(struct platform_device *pdev)
 
 	rc = hw_reset(fpc1020);
 
+	device_init_wakeup(dev, true);
+
 	dev_info(dev, "%s: ok\n", __func__);
 
 exit:
@@ -611,7 +610,6 @@ static int fpc1020_remove(struct platform_device *pdev)
 
 	sysfs_remove_group(&fpc1020->input->dev.kobj, &attribute_group);
 	mutex_destroy(&fpc1020->lock);
-	wakeup_source_trash(&fpc1020->ttw_wl);
 	(void)vreg_setup(fpc1020, "vdd_ana", false);
 	(void)vreg_setup(fpc1020, "vdd_io", false);
 	(void)vreg_setup(fpc1020, "vcc_spi", false);
