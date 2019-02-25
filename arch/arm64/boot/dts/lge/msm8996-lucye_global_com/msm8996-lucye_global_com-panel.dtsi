@@ -14,7 +14,6 @@
 #include "../dsi-panel-sw49408-dsc-1440-2880-cmd.dtsi"
 
 &mdss_mdp {
-	qcom,mdss-idle-power-collapse-enabled;
 	qcom,mdss-pref-prim-intf = "dsi";
 	qcom,mdss-has-source-split;
 };

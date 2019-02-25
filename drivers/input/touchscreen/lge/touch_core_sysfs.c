@@ -21,7 +21,9 @@
  */
 #include <touch_core.h>
 #include <touch_hwif.h>
-
+#if defined(CONFIG_SECURE_TOUCH)
+#include <touch_i2c.h>
+#endif
 #define TOUCH_SHOW(ret, buf, fmt, args...) \
 	(ret += snprintf(buf + ret, PAGE_SIZE - ret, fmt, ##args))
 
@@ -60,6 +62,10 @@ static ssize_t show_platform_data(struct device *dev, char *buf)
 	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "use_lpwg", ts->role.use_lpwg);
 	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "hide_coordinate",
 		   ts->role.hide_coordinate);
+	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "use_fw_upgrade",
+		   ts->role.use_fw_upgrade);
+	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "use_fw_recovery",
+		   ts->role.use_fw_recovery);
 
 	TOUCH_SHOW(ret, buf, "power:\n");
 	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "vdd-gpio", ts->vdd_pin);
@@ -133,7 +139,7 @@ static ssize_t store_lpwg_data(struct device *dev,
 	TOUCH_I("%s : reply = %d\n", __func__, reply);
 
 	atomic_set(&ts->state.uevent, UEVENT_IDLE);
-	wake_unlock(&ts->lpwg_wake_lock);
+	pm_relax(ts->dev);
 
 	return count;
 }
@@ -555,6 +561,393 @@ static ssize_t store_debug_option_state(struct device *dev,
 	return count;
 }
 
+static ssize_t show_app_data(struct device *dev, char *buf)
+{
+	struct touch_core_data *ts = to_touch_core(dev);
+	int ret = 0;
+	int i = 0;
+
+	TOUCH_TRACE();
+
+	for(i = 0 ; i < 3 ; i++) {
+		ret += snprintf(buf + ret, PAGE_SIZE - ret, "%d %s %d %d\n",
+				ts->app_data[i].app, ts->app_data[i].version,
+				ts->app_data[i].icon_size, ts->app_data[i].touch_slop);
+		if (ts->app_data[i].icon_size != 0) {
+			TOUCH_I("%s : Read %s App data (Icon_Size = %d, Touch_Slop = %d, Version = %s)\n",
+					__func__, (ts->app_data[i].app == APP_HOME ? "Home" : ((ts->app_data[i].app == APP_CONTACTS) ? "Contacts" : "Menu")),
+					ts->app_data[i].icon_size, ts->app_data[i].touch_slop, ts->app_data[i].version);
+		}
+
+	}
+
+	return ret;
+}
+
+static ssize_t store_app_data(struct device *dev,
+		const char *buf, size_t count)
+{
+
+	struct touch_core_data *ts = to_touch_core(dev);
+	struct app_info app_data_buf;
+
+	TOUCH_TRACE();
+
+	if (sscanf(buf, "%d %10s %d %d",
+				&app_data_buf.app, app_data_buf.version,
+				&app_data_buf.icon_size, &app_data_buf.touch_slop) <= 0)
+		return count;
+
+	if (app_data_buf.app >= APP_HOME && app_data_buf.app <= APP_MENU) {
+		memcpy(&ts->app_data[app_data_buf.app], &app_data_buf, sizeof(app_data_buf));
+		TOUCH_I("%s : Write %s App data (Icon_Size = %d, Touch_Slop = %d, Version = %s)\n",
+				__func__, (app_data_buf.app == APP_HOME ? "Home" : ((app_data_buf.app == APP_CONTACTS) ? "Contacts" : "Menu")),
+				app_data_buf.icon_size, app_data_buf.touch_slop, app_data_buf.version);
+	}
+
+	return count;
+}
+
+static ssize_t show_click_test(struct device *dev, char *buf)
+{
+	struct touch_core_data *ts = to_touch_core(dev);
+	int ret = 0;
+	struct touch_data tdata;
+	int cnt = 100 / ts->perf_test.delay;	/* click 100ms */
+	int i = 0;
+
+	TOUCH_TRACE();
+
+	if (!ts->perf_test.enable)
+		return ret;
+
+	if (cnt < 2) {
+		TOUCH_E("invalid cnt(%d)\n", cnt);
+		return -EINVAL;
+	}
+
+	tdata.id = 0;
+	tdata.x = ts->perf_test.click_x;
+	tdata.y = ts->perf_test.click_y;
+	tdata.pressure = ts->perf_test.pressure;
+	tdata.width_major = ts->perf_test.width;
+	tdata.width_minor = ts->perf_test.width;
+	tdata.orientation = 0;
+
+	TOUCH_I("%s: start (%4d, %4d)\n", __func__, tdata.x, tdata.y);
+	mutex_lock(&ts->lock);
+	touch_report_all_event(ts);
+
+	for (i = 0; i < cnt; i++) {
+		input_mt_slot(ts->input, tdata.id);
+		input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, true);
+		input_report_key(ts->input, BTN_TOUCH, 1);
+		input_report_key(ts->input, BTN_TOOL_FINGER, 1);
+		input_report_abs(ts->input, ABS_MT_TRACKING_ID, tdata.id);
+		input_report_abs(ts->input, ABS_MT_POSITION_X, tdata.x);
+		input_report_abs(ts->input, ABS_MT_POSITION_Y, tdata.y);
+		input_report_abs(ts->input, ABS_MT_PRESSURE, tdata.pressure);
+		input_report_abs(ts->input, ABS_MT_WIDTH_MAJOR,
+				tdata.width_major);
+		input_report_abs(ts->input, ABS_MT_WIDTH_MINOR,
+				tdata.width_minor);
+		input_report_abs(ts->input, ABS_MT_ORIENTATION,
+				tdata.orientation);
+		input_sync(ts->input);
+
+		touch_msleep(ts->perf_test.delay);
+	}
+
+	input_mt_slot(ts->input, tdata.id);
+	input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, false);
+	input_report_key(ts->input, BTN_TOUCH, 0);
+	input_report_key(ts->input, BTN_TOOL_FINGER, 0);
+	input_sync(ts->input);
+
+	touch_report_all_event(ts);
+	mutex_unlock(&ts->lock);
+	TOUCH_I("%s: end\n", __func__);
+
+	return ret;
+}
+
+static ssize_t show_v_drag_test(struct device *dev, char *buf)
+{
+	struct touch_core_data *ts = to_touch_core(dev);
+	int ret = 0;
+	struct touch_data *tdata = NULL;
+	int cnt = 800 / ts->perf_test.delay;	/* drag 800ms */
+	u16 start_y = ts->perf_test.v_drag_start_y;
+	u16 end_y = ts->perf_test.v_drag_end_y;
+	u16 y_diff = start_y - end_y;
+	int i = 0;
+
+	TOUCH_TRACE();
+
+	if (!ts->perf_test.enable)
+		return ret;
+
+	if (cnt < 2) {
+		TOUCH_E("invalid cnt(%d)\n", cnt);
+		return -EINVAL;
+	}
+
+	tdata = kcalloc(cnt, sizeof(*tdata), GFP_KERNEL);
+	if (tdata == NULL) {
+		TOUCH_E("failed to kcalloc tdata\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < cnt; i++) {
+		tdata[i].id = 0;
+		tdata[i].x = ts->perf_test.v_drag_x;
+		tdata[i].y = start_y - ((y_diff * i) / (cnt - 1));
+		tdata[i].pressure = ts->perf_test.pressure;
+		tdata[i].width_major = ts->perf_test.width;
+		tdata[i].width_minor = ts->perf_test.width;
+		tdata[i].orientation = 0;
+	}
+
+	TOUCH_I("%s: start (y: %4d -> %4d)\n", __func__, start_y, end_y);
+	mutex_lock(&ts->lock);
+	touch_report_all_event(ts);
+
+	for (i = 0; i < cnt; i++) {
+		input_mt_slot(ts->input, tdata[i].id);
+		input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, true);
+		input_report_key(ts->input, BTN_TOUCH, 1);
+		input_report_key(ts->input, BTN_TOOL_FINGER, 1);
+		input_report_abs(ts->input, ABS_MT_TRACKING_ID, tdata[i].id);
+		input_report_abs(ts->input, ABS_MT_POSITION_X, tdata[i].x);
+		input_report_abs(ts->input, ABS_MT_POSITION_Y, tdata[i].y);
+		input_report_abs(ts->input, ABS_MT_PRESSURE, tdata[i].pressure);
+		input_report_abs(ts->input, ABS_MT_WIDTH_MAJOR,
+				tdata[i].width_major);
+		input_report_abs(ts->input, ABS_MT_WIDTH_MINOR,
+				tdata[i].width_minor);
+		input_report_abs(ts->input, ABS_MT_ORIENTATION,
+				tdata[i].orientation);
+		input_sync(ts->input);
+
+		touch_msleep(ts->perf_test.delay);
+	}
+
+	input_mt_slot(ts->input, tdata[i - 1].id);
+	input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, false);
+	input_report_key(ts->input, BTN_TOUCH, 0);
+	input_report_key(ts->input, BTN_TOOL_FINGER, 0);
+	input_sync(ts->input);
+
+	touch_report_all_event(ts);
+	mutex_unlock(&ts->lock);
+	kfree(tdata);
+	TOUCH_I("%s: end\n", __func__);
+
+	return ret;
+}
+
+static ssize_t show_h_drag_test(struct device *dev, char *buf)
+{
+	struct touch_core_data *ts = to_touch_core(dev);
+	int ret = 0;
+	struct touch_data *tdata = NULL;
+	int cnt = 800 / ts->perf_test.delay;	/* drag 800ms */
+	u16 start_x = ts->perf_test.h_drag_start_x;
+	u16 end_x = ts->perf_test.h_drag_end_x;
+	u16 x_diff = start_x - end_x;
+	int i = 0;
+
+	TOUCH_TRACE();
+
+	if (!ts->perf_test.enable)
+		return ret;
+
+	if (cnt < 2) {
+		TOUCH_E("invalid cnt(%d)\n", cnt);
+		return -EINVAL;
+	}
+
+	tdata = kcalloc(cnt, sizeof(*tdata), GFP_KERNEL);
+	if (tdata == NULL) {
+		TOUCH_E("failed to kcalloc tdata\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < cnt; i++) {
+		tdata[i].id = 0;
+		tdata[i].x = start_x - ((x_diff * i) / (cnt - 1));
+		tdata[i].y = ts->perf_test.h_drag_y;
+		tdata[i].pressure = ts->perf_test.pressure;
+		tdata[i].width_major = ts->perf_test.width;
+		tdata[i].width_minor = ts->perf_test.width;
+		tdata[i].orientation = 0;
+	}
+
+	TOUCH_I("%s: start (x: %4d -> %4d)\n", __func__, start_x, end_x);
+	mutex_lock(&ts->lock);
+	touch_report_all_event(ts);
+
+	for (i = 0; i < cnt; i++) {
+		input_mt_slot(ts->input, tdata[i].id);
+		input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, true);
+		input_report_key(ts->input, BTN_TOUCH, 1);
+		input_report_key(ts->input, BTN_TOOL_FINGER, 1);
+		input_report_abs(ts->input, ABS_MT_TRACKING_ID, tdata[i].id);
+		input_report_abs(ts->input, ABS_MT_POSITION_X, tdata[i].x);
+		input_report_abs(ts->input, ABS_MT_POSITION_Y, tdata[i].y);
+		input_report_abs(ts->input, ABS_MT_PRESSURE, tdata[i].pressure);
+		input_report_abs(ts->input, ABS_MT_WIDTH_MAJOR,
+				tdata[i].width_major);
+		input_report_abs(ts->input, ABS_MT_WIDTH_MINOR,
+				tdata[i].width_minor);
+		input_report_abs(ts->input, ABS_MT_ORIENTATION,
+				tdata[i].orientation);
+		input_sync(ts->input);
+
+		touch_msleep(ts->perf_test.delay);
+	}
+
+	input_mt_slot(ts->input, tdata[i - 1].id);
+	input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, false);
+	input_report_key(ts->input, BTN_TOUCH, 0);
+	input_report_key(ts->input, BTN_TOOL_FINGER, 0);
+	input_sync(ts->input);
+
+	touch_report_all_event(ts);
+	mutex_unlock(&ts->lock);
+	kfree(tdata);
+	TOUCH_I("%s: end\n", __func__);
+
+	return ret;
+}
+
+#if defined(CONFIG_SECURE_TOUCH)
+static ssize_t show_secure_touch_devinfo(struct device *dev,
+				char *buf)
+{
+	int value = 0;
+
+	value = touch_get_device_type();
+
+	return scnprintf(buf, PAGE_SIZE, "%d", value);
+}
+
+static ssize_t show_secure_touch_enable(struct device *dev,
+				char *buf)
+{
+		struct touch_core_data *ts = to_touch_core(dev);
+			return scnprintf(buf, PAGE_SIZE, "%d",
+								atomic_read(&ts->st_enabled));
+}
+/*
+ * Accept only "0" and "1" valid values.
+ * "0" will reset the st_enabled flag, then wake up the reading process and
+ * the interrupt handler.
+ * The bus driver is notified via pm_runtime that it is not required to stay
+ * awake anymore.
+ * It will also make sure the queue of events is emptied in the controller,
+ * in case a touch happened in between the secure touch being disabled and
+ * the local ISR being ungated.
+ * "1" will set the st_enabled flag and clear the st_pending_irqs flag.
+ * The bus driver is requested via pm_runtime to stay awake.
+ */
+static ssize_t store_secure_touch_enable(struct device *dev,
+		const char *buf, size_t count)
+{
+	struct touch_core_data *ts = to_touch_core(dev);
+	unsigned long value;
+	int err = 0;
+
+	if (count > 2)
+		return -EINVAL;
+
+	err = kstrtoul(buf, 10, &value);
+	if (err != 0)
+		return err;
+
+	if (!ts->st_initialized)
+		return -EIO;
+
+	err = count;
+
+	TOUCH_I("%s : value %lu\n", __func__, value);
+
+	switch (value) {
+		case 0:
+			if (atomic_read(&ts->st_enabled) == 0)
+				break;
+
+			atomic_set(&ts->st_enabled, 0);
+			secure_touch_notify(ts);
+			complete(&ts->st_irq_processed);
+			touch_irq_handler(ts->irq, ts);
+			complete(&ts->st_powerdown);
+
+			break;
+		case 1:
+			/* TO DO */
+			if (atomic_read(&ts->st_enabled)) {
+				err = -EBUSY;
+				break;
+			}
+
+			synchronize_irq(ts->irq);
+
+			reinit_completion(&ts->st_powerdown);
+			reinit_completion(&ts->st_irq_processed);
+			atomic_set(&ts->st_enabled, 1);
+			atomic_set(&ts->st_pending_irqs,  0);
+
+			break;
+		default:
+			TOUCH_I("%s : Unknown value %lu\n",
+					__func__, value);
+			err = -EINVAL;
+			break;
+	}
+	return err;
+}
+
+/*
+ * This function returns whether there are pending interrupts, or
+ * other error conditions that need to be signaled to the userspace library,
+ * according tot he following logic:
+ * - st_enabled is 0 if secure touch is not enabled, returning -EBADF
+ * - st_pending_irqs is -1 to signal that secure touch is in being stopped,
+ *   returning -EINVAL
+ * - st_pending_irqs is 1 to signal that there is a pending irq, returning
+ *   the value "1" to the sysfs read operation
+ * - st_pending_irqs is 0 (only remaining case left) if the pending interrupt
+ *   has been processed, so the interrupt handler can be allowed to continue.
+ */
+static ssize_t show_secure_touch(struct device *dev,
+		char *buf)
+{
+	struct touch_core_data *ts = to_touch_core(dev);
+	int val = 0;
+
+	if (atomic_read(&ts->st_enabled) == 0)
+		return -EBADF;
+
+	if (atomic_cmpxchg(&ts->st_pending_irqs, -1, 0) == -1)
+		return -EINVAL;
+
+	if (atomic_cmpxchg(&ts->st_pending_irqs, 1, 0) == 1) {
+		val = 1;
+	} else {
+		TOUCH_I("complete\n");
+		complete(&ts->st_irq_processed);
+	}
+	return scnprintf(buf, PAGE_SIZE, "%u", val);
+
+}
+
+static TOUCH_ATTR(secure_touch_enable, show_secure_touch_enable,
+						store_secure_touch_enable);
+static TOUCH_ATTR(secure_touch, show_secure_touch, NULL);
+static TOUCH_ATTR(secure_touch_devinfo, show_secure_touch_devinfo, NULL);
+#endif
+
 static TOUCH_ATTR(platform_data, show_platform_data, NULL);
 static TOUCH_ATTR(fw_upgrade, show_upgrade, store_upgrade);
 static TOUCH_ATTR(lpwg_data, show_lpwg_data, store_lpwg_data);
@@ -577,6 +970,10 @@ static TOUCH_ATTR(sp_link_touch_off,
 static TOUCH_ATTR(debug_tool, show_debug_tool_state, store_debug_tool_state);
 static TOUCH_ATTR(debug_option, show_debug_option_state,
 				store_debug_option_state);
+static TOUCH_ATTR(app_data, show_app_data, store_app_data);
+static TOUCH_ATTR(click_test, show_click_test, NULL);
+static TOUCH_ATTR(v_drag_test, show_v_drag_test, NULL);
+static TOUCH_ATTR(h_drag_test, show_h_drag_test, NULL);
 
 static struct attribute *touch_attribute_list[] = {
 	&touch_attr_platform_data.attr,
@@ -596,6 +993,15 @@ static struct attribute *touch_attribute_list[] = {
 	&touch_attr_sp_link_touch_off.attr,
 	&touch_attr_debug_tool.attr,
 	&touch_attr_debug_option.attr,
+	&touch_attr_app_data.attr,
+	&touch_attr_click_test.attr,
+	&touch_attr_v_drag_test.attr,
+	&touch_attr_h_drag_test.attr,
+#if defined(CONFIG_SECURE_TOUCH)
+	&touch_attr_secure_touch_enable.attr,
+	&touch_attr_secure_touch.attr,
+	&touch_attr_secure_touch_devinfo.attr,
+#endif
 	NULL,
 };
 

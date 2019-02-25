@@ -27,4 +27,9 @@ extern int touch_spi_xfer(struct spi_device *, struct touch_xfer_msg *xfer);
 extern int touch_spi_device_init(struct touch_hwif *hwif, void *driver);
 extern void touch_spi_device_exit(struct touch_hwif *hwif);
 
+#if defined(CONFIG_SECURE_TOUCH) && (0)
+extern void touch_spi_set(struct touch_core_data *ts);
+extern int touch_spi_get(struct touch_core_data *ts);
+#endif
+
 #endif

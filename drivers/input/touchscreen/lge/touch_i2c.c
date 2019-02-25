@@ -198,6 +198,11 @@ static int touch_i2c_probe(struct i2c_client *i2c,
 	}
 	TOUCH_I("platform device registered ...\n");
 
+#if defined(CONFIG_SECURE_TOUCH)
+	secure_touch_init(ts);
+	secure_touch_stop(ts, true);
+#endif
+
 	return 0;
 }
 
@@ -246,6 +251,63 @@ static const struct dev_pm_ops touch_pm_ops = {
 static struct i2c_device_id touch_id[] = {
 	{ LGE_TOUCH_NAME, 0 },
 };
+
+#if defined(CONFIG_SECURE_TOUCH)
+static int touch_clk_prepare_enable(struct touch_core_data *ts)
+{
+	int ret;
+
+	ret = clk_prepare_enable(ts->iface_clk);
+	if (ret) {
+		dev_err(ts->pdev->dev.parent,
+				"error on clk_prepare_enable(iface_clk):%d\n", ret);
+		return ret;
+	}
+
+	ret = clk_prepare_enable(ts->core_clk);
+	if (ret) {
+		clk_disable_unprepare(ts->iface_clk);
+		dev_err(ts->pdev->dev.parent,
+				"error clk_prepare_enable(core_clk):%d\n", ret);
+	}
+	return ret;
+}
+
+static void touch_clk_disable_unprepare(struct touch_core_data *ts)
+{
+	clk_disable_unprepare(ts->core_clk);
+	clk_disable_unprepare(ts->iface_clk);
+}
+
+int touch_i2c_get(struct touch_core_data *ts)
+{
+	int retval;
+	struct i2c_client *i2c = to_i2c_client(ts->pdev->dev.parent);
+
+	mutex_lock(&ts->touch_io_ctrl_mutex);
+	retval = pm_runtime_get_sync(i2c->adapter->dev.parent);
+	if (retval >= 0 && ts->core_clk != NULL &&
+			ts->iface_clk != NULL) {
+		retval = touch_clk_prepare_enable(ts);
+		if (retval)
+			pm_runtime_put_sync(i2c->adapter->dev.parent);
+	}
+	mutex_unlock(&ts->touch_io_ctrl_mutex);
+
+	return retval;
+}
+
+void touch_i2c_set(struct touch_core_data *ts)
+{
+	struct i2c_client *i2c = to_i2c_client(ts->pdev->dev.parent);
+
+	mutex_lock(&ts->touch_io_ctrl_mutex);
+	if (ts->core_clk != NULL && ts->iface_clk != NULL)
+		touch_clk_disable_unprepare(ts);
+	pm_runtime_put_sync(i2c->adapter->dev.parent);
+	mutex_unlock(&ts->touch_io_ctrl_mutex);
+}
+#endif
 
 int touch_i2c_device_init(struct touch_hwif *hwif, void *driver)
 {

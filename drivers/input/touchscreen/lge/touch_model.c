@@ -53,8 +53,10 @@ int touch_get_dts_base(struct touch_core_data *ts)
 	/* Role */
 	PROPERTY_BOOL(np, "use_lpwg", ts->role.use_lpwg);
 	PROPERTY_U32(np, "use_lpwg_test", ts->role.use_lpwg_test);
-	PROPERTY_BOOL(np, "use_upgrade", ts->role.use_upgrade);
 	PROPERTY_BOOL(np, "hide_coordinate", ts->role.hide_coordinate);
+	PROPERTY_BOOL(np, "use_firmware", ts->role.use_firmware);
+	PROPERTY_BOOL(np, "use_fw_upgrade", ts->role.use_fw_upgrade);
+	PROPERTY_BOOL(np, "use_fw_recovery", ts->role.use_fw_recovery);
 
 	/* Power */
 	PROPERTY_GPIO(np, "vdd-gpio", ts->vdd_pin);
@@ -76,6 +78,21 @@ int touch_get_dts_base(struct touch_core_data *ts)
 	PROPERTY_STRING(np, "panel_spec_mfts_flat", ts->panel_spec_mfts_flat);
 	PROPERTY_STRING(np, "panel_spec_mfts_curved",
 					ts->panel_spec_mfts_curved);
+
+	/* Performance Test */
+	PROPERTY_BOOL(np, "use_perf_test", ts->perf_test.enable);
+	PROPERTY_U32(np, "test_delay", ts->perf_test.delay);
+	PROPERTY_U32(np, "test_pressure", ts->perf_test.pressure);
+	PROPERTY_U32(np, "test_width", ts->perf_test.width);
+	PROPERTY_U32(np, "click_test_x", ts->perf_test.click_x);
+	PROPERTY_U32(np, "click_test_y", ts->perf_test.click_y);
+	PROPERTY_U32(np, "v_drag_test_x", ts->perf_test.v_drag_x);
+	PROPERTY_U32(np, "v_drag_test_start_y", ts->perf_test.v_drag_start_y);
+	PROPERTY_U32(np, "v_drag_test_end_y", ts->perf_test.v_drag_end_y);
+	PROPERTY_U32(np, "h_drag_test_start_x", ts->perf_test.h_drag_start_x);
+	PROPERTY_U32(np, "h_drag_test_end_x", ts->perf_test.h_drag_end_x);
+	PROPERTY_U32(np, "h_drag_test_y", ts->perf_test.h_drag_y);
+
 	TOUCH_I("end dev.of_node\n");
 
 	return 0;

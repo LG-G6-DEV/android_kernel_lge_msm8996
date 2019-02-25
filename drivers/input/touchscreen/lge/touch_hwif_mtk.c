@@ -172,8 +172,13 @@ int touch_bus_read(struct device *dev, struct touch_bus_msg *msg)
 
 	if (ts->bus_type == HWIF_I2C)
 		ret = touch_i2c_read(to_i2c_client(dev), msg);
-	else if (ts->bus_type == HWIF_SPI)
+	else if (ts->bus_type == HWIF_SPI) {
+		if (atomic_read(&ts->state.pm) >= DEV_PM_SUSPEND) {
+			TOUCH_E("bus_read when pm_suspend");
+			return -EDEADLK;
+		}
 		ret = touch_spi_read(to_spi_device(dev), msg);
+	}
 
 	return ret;
 }
@@ -185,8 +190,13 @@ int touch_bus_write(struct device *dev, struct touch_bus_msg *msg)
 
 	if (ts->bus_type == HWIF_I2C)
 		ret = touch_i2c_write(to_i2c_client(dev), msg);
-	else if (ts->bus_type == HWIF_SPI)
+	else if (ts->bus_type == HWIF_SPI) {
+		if (atomic_read(&ts->state.pm) >= DEV_PM_SUSPEND) {
+			TOUCH_E("bus_write when pm_suspend");
+			return -EDEADLK;
+		}
 		ret = touch_spi_write(to_spi_device(dev), msg);
+	}
 
 	return ret;
 }

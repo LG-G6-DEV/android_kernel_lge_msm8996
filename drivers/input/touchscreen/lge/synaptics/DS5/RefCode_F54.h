@@ -22,11 +22,12 @@
 
 #include <touch_hwif.h>
 #include <touch_core.h>
-#include "../touch_s3320.h"
-#include "../touch_s3320_prd.h"
+#include "../touch_s3330.h"
+#include "../touch_s3330_prd.h"
 
 
-#define TRX_max 32
+#define TRX_MAX 32
+#define TRX_BITMAP_LENGTH	7
 #define CAP_FILE_PATH "/sns/touch/cap_diff_test.txt"
 #define DS5_BUFFER_SIZE 6000
 
@@ -39,13 +40,13 @@ enum {
 	RSP_LPWG_RAW_DATA,
 };
 
-extern int UpperImage[TRX_max][TRX_max];
-extern int LowerImage[TRX_max][TRX_max];
-extern int SensorSpeedUpperImage[TRX_max][TRX_max];
-extern int SensorSpeedLowerImage[TRX_max][TRX_max];
-extern int ADCUpperImage[TRX_max][TRX_max];
-extern int ADCLowerImage[TRX_max][TRX_max];
-extern int RspNoise[TRX_max][TRX_max];
+extern int UpperImage[TRX_MAX][TRX_MAX];
+extern int LowerImage[TRX_MAX][TRX_MAX];
+extern int SensorSpeedUpperImage[TRX_MAX][TRX_MAX];
+extern int SensorSpeedLowerImage[TRX_MAX][TRX_MAX];
+extern int ADCUpperImage[TRX_MAX][TRX_MAX];
+extern int ADCLowerImage[TRX_MAX][TRX_MAX];
+extern int RspNoise[TRX_MAX][TRX_MAX];
 extern unsigned char RxChannelCount;
 extern unsigned char TxChannelCount;
 extern int f54_window_crack;

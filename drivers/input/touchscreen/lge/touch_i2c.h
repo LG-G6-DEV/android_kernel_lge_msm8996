@@ -24,4 +24,9 @@ extern int touch_i2c_write(struct i2c_client *, struct touch_bus_msg *msg);
 extern int touch_i2c_device_init(struct touch_hwif *hwif, void *driver);
 extern void touch_i2c_device_exit(struct touch_hwif *hwif);
 
+#if defined(CONFIG_SECURE_TOUCH)
+extern void touch_i2c_set(struct touch_core_data *ts);
+extern int touch_i2c_get(struct touch_core_data *ts);
+#endif
+
 #endif

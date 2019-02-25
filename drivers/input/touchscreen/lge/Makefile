@@ -25,4 +25,5 @@ obj-$(CONFIG_LGE_TOUCH_CORE)		+= touch_hwif.o
 obj-$(CONFIG_LGE_TOUCH_CORE_MTK)	+= touch_hwif_mtk.o
 
 obj-$(CONFIG_LGE_TOUCH_CORE_BASE)	+= lgsic/
+obj-$(CONFIG_LGE_TOUCH_CORE_BASE)	+= stm/
 obj-$(CONFIG_LGE_TOUCH_CORE_BASE)	+= synaptics/

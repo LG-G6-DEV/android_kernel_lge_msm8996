@@ -93,3 +93,21 @@ config DRM_SDE_HDMI
 	default y
 	help
 	  Choose this option if HDMI connector support is needed in SDE driver.
+
+config LGE_DISPLAY_SW49408
+	default y
+	bool "LGE sw49408"
+	---help---
+	The SW49408 provides support for SW49408 features made by LGE.
+
+config LGE_DISPLAY_COMMON
+	default y
+	bool "LGE DISPLAY COMMON"
+	---help---
+	The LGE DISPLAY COMMON feature.
+
+config LGE_DISPLAY_DIMMING_BOOT_SUPPORT
+	default y
+	bool "LGE DISPLAY DIMMING BOOT SUPPORT"
+	depends on LGE_DISPLAY_COMMON
+	---help---

@@ -111,8 +111,6 @@ bool ButtonShared;
 
 /*RSP Product Test*/
 bool bIncellDevice;
-unsigned char F54Ctrl149Offset;
-unsigned char F54Ctrl102Offset;
 bool bHaveF54Ctrl103;
 bool bHaveF54Ctrl104;
 bool bHaveF54Ctrl105;
@@ -160,6 +158,47 @@ bool bHaveF54Ctrl146;
 bool bHaveF54Ctrl147;
 bool bHaveF54Ctrl148;
 bool bHaveF54Ctrl149;
+bool bHaveF54Ctrl150;
+bool bHaveF54Ctrl151;
+bool bHaveF54Ctrl152;
+bool bHaveF54Ctrl153;
+bool bHaveF54Ctrl154;
+bool bHaveF54Ctrl155;
+bool bHaveF54Ctrl156;
+bool bHaveF54Ctrl157;
+bool bHaveF54Ctrl158;
+bool bHaveF54Ctrl159;
+bool bHaveF54Ctrl160;
+bool bHaveF54Ctrl161;
+bool bHaveF54Ctrl162;
+bool bHaveF54Ctrl163;
+bool bHaveF54Ctrl164;
+bool bHaveF54Ctrl165;
+bool bHaveF54Ctrl166;
+bool bHaveF54Ctrl167;
+bool bHaveF54Ctrl168;
+bool bHaveF54Ctrl169;
+bool bHaveF54Ctrl170;
+bool bHaveF54Ctrl171;
+bool bHaveF54Ctrl172;
+bool bHaveF54Ctrl173;
+bool bHaveF54Ctrl174;
+bool bHaveF54Ctrl175;
+bool bHaveF54Ctrl176;
+bool bHaveF54Ctrl177;
+bool bHaveF54Ctrl178;
+bool bHaveF54Ctrl179;
+bool bHaveF54Ctrl180;
+bool bHaveF54Ctrl181;
+bool bHaveF54Ctrl182;
+bool bHaveF54Ctrl183;
+bool bHaveF54Ctrl184;
+bool bHaveF54Ctrl185;
+bool bHaveF54Ctrl186;
+bool bHaveF54Ctrl187;
+bool bHaveF54Ctrl188;
+bool bHaveF54Ctrl189;
+bool bHaveF54Ctrl198;
 bool bHaveF54Query24;
 bool bHaveF54Query26;
 bool bHaveF54Query27;
@@ -174,6 +213,23 @@ bool bHaveF54Query35;
 bool bHaveF54Query36;
 bool bHaveF54Query37;
 bool bHaveF54Query38;
+bool bHaveF54Query39;
+bool bHaveF54Query40;
+bool bHaveF54Query41;
+bool bHaveF54Query42;
+bool bHaveF54Query43;
+bool bHaveF54Query44;
+bool bHaveF54Query45;
+bool bHaveF54Query46;
+bool bHaveF54Query47;
+bool bHaveF54Query48;
+bool bHaveF54Query49;
+bool bHaveF54Query50;
+bool bHaveF54Query51;
+bool bHaveF54Query52;
+bool bHaveF54Query53;
+bool bHaveF54Query54;
+bool bHaveF54Query55;
 
 static const int RSP_COLLECT_FRAMES = 20;
 static const int RSP_MAX_ROW = 32;
@@ -221,7 +277,17 @@ unsigned char F54Ctrl41Offset;
 unsigned char F54Ctrl57Offset;
 unsigned char F54Ctrl88Offset;
 unsigned char F54Ctrl89Offset;
+unsigned char F54Ctrl91Offset;
+unsigned char F54Ctrl96Offset;
 unsigned char F54Ctrl98Offset;
+unsigned char F54Ctrl102Offset;
+unsigned char F54Ctrl149Offset;
+unsigned char F54Ctrl188Offset;
+unsigned char F54Ctrl189Offset;
+unsigned char F54Query54Sub0;
+unsigned char F54Query54Sub1;
+unsigned char F54Ctrl198_00_Size;
+unsigned char F54Ctrl198_01_Size;
 unsigned char F1AControlBase;
 unsigned char F12ControlBase;
 unsigned char F12QueryBase;
@@ -235,12 +301,16 @@ unsigned char F12ControlRegisterPresence;
 unsigned char mask;
 
 /* Assuming Tx = 32 & Rx = 32 to accommodate any configuration*/
-short Image1[TRX_max][TRX_max];
-int ImagepF[TRX_max][TRX_max];
+short Image1[TRX_MAX][TRX_MAX];
+int ImagepF[TRX_MAX][TRX_MAX];
 int AbsSigned32Data[TRX_mapping_max];
 unsigned char AbsADCRangeData[TRX_mapping_max];
-unsigned char Data[TRX_max * TRX_max * 4];
+unsigned char Data[TRX_MAX * TRX_MAX * 4];
 unsigned char TRxPhysical[TRX_mapping_max];
+int RXROE[TRX_MAX];
+int TXROE[TRX_MAX];
+unsigned char TRxPhysical_bit[TRX_BITMAP_LENGTH];
+unsigned char err_array[7] = {0};
 
 int MaxArrayLength;
 
@@ -250,8 +320,8 @@ unsigned char TRX_Gnd[7] = {0xff, 0xff, 0xff, 0xff, 0x3, 0xff, 0xfc};
 unsigned char TRX_Short[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 int HighResistanceLowerLimit[3] = {-1000, -1000, -400};
 int HighResistanceUpperLimit[3] = {450, 450, 20};
-unsigned int AbsShort[TRX_max*2] = {0};
-unsigned int AbsOpen[TRX_max*2] = {0};
+unsigned int AbsShort[TRX_MAX*2] = {0};
+unsigned int AbsOpen[TRX_MAX*2] = {0};
 int AbsTxShortLimit;
 int AbsRxShortLimit;
 int AbsTxOpenLimit;
@@ -288,7 +358,7 @@ bool switchPage(int page)
 	count = 0;
 	do {
 		Write8BitRegisters(0xFF, values, 1);
-		msleep(20);
+		touch_msleep(20);
 		Read8BitRegisters(0xFF, &data, 1);
 		count++;
 	} while ((int)data != page && (count < DefaultTimeout));
@@ -308,7 +378,7 @@ void Reset(void)
 	data = 0x01;
 	Write8BitRegisters(F01CommandBase, &data, 1);
 
-	msleep(15);
+	touch_msleep(300);
 }
 
 /* Compare Report type #20 data against test limits*/
@@ -321,10 +391,10 @@ int CompareImageReport(void)
 	/*Compare 0D area*/
 	if (ButtonCount > 0) {
 		for (i = 0; i < ButtonCount; i++) {
-			if ((ImagepF[TxChannelCount-1][F12_2DRxCount + i] <
-			LowerImageLimit[TxChannelCount-1][F12_2DRxCount + i])
-			|| (ImagepF[TxChannelCount-1][F12_2DRxCount + i] >
-			UpperImageLimit[TxChannelCount-1][F12_2DRxCount + i])) {
+			if ((ImagepF[TxChannelCount - 1][F12_2DRxCount + i] <
+			LowerImageLimit[TxChannelCount - 1][F12_2DRxCount + i])
+			|| (ImagepF[TxChannelCount - 1][F12_2DRxCount + i] >
+			UpperImageLimit[TxChannelCount - 1][F12_2DRxCount + i])) {
 				result = false;
 				break;
 			}
@@ -371,7 +441,7 @@ int CompareImageReport(void)
 				} else {
 					f54len += snprintf(f54buf + f54len,
 							sizeof(f54buf) - f54len,
-							"FAIL, %d,%d,%d\n",
+							"FAIL, Tx[%d] Rx[%d] = %d\n",
 							i, j, ImagepF[i][j]);
 					result = false;
 				}
@@ -394,30 +464,56 @@ int CompareImageReport(void)
 }
 
 /* Compare Report type #4 data against test limits*/
-int CompareHighResistance(int maxRxpF, int maxTxpF, int minpF)
+int CompareHighResistance(void)
 {
 	bool result = true;
+	int i = 0, j = 0;
 
-	if (maxRxpF > HighResistanceUpperLimit[0]
-			|| maxRxpF < HighResistanceLowerLimit[0])
-		result = false;
-	if (maxTxpF > HighResistanceUpperLimit[1]
-			|| maxTxpF < HighResistanceLowerLimit[1])
-		result = false;
-	if (minpF > HighResistanceUpperLimit[2]
-			|| minpF < HighResistanceLowerLimit[2])
-		result = false;
+	for (i = 0 ; i < (int)RxChannelCount ; i++) {
+		if (RXROE[i] > HighResistanceUpperLimit[0]
+			|| RXROE[i] < HighResistanceLowerLimit[0]) {
+			f54len += snprintf(f54buf + f54len,
+					sizeof(f54buf) - f54len,
+					"Fail, RxROE[%d] = %d\n",
+					i, RXROE[i]);
+			result = false;
+		}
+	}
+
+	for (i = 0 ; i < (int)TxChannelCount ; i++) {
+		if (TXROE[i] > HighResistanceUpperLimit[1]
+			|| TXROE[i] < HighResistanceLowerLimit[1]) {
+			f54len += snprintf(f54buf + f54len,
+					sizeof(f54buf) - f54len,
+					"Fail, TxROE[%d] = %d\n",
+					i, TXROE[i]);
+			result = false;
+		}
+	}
+
+	for (i = 0 ; i < (int)TxChannelCount ; i++) {
+		for (j = 0 ; j < (int)RxChannelCount ; j++) {
+			if (ImagepF[i][j] > HighResistanceUpperLimit[2]
+				|| ImagepF[i][j] < HighResistanceLowerLimit[2]) {
+				f54len += snprintf(f54buf + f54len,
+						sizeof(f54buf) - f54len,
+						"Fail, Tx[%d] Rx[%d] = %d\n",
+						i, j, ImagepF[i][j]);
+				result = false;
+			}
+		}
+	}
 
 	if (result == false) {
 		TOUCH_I("HighResistance Test failed.\n");
 		f54len += snprintf(f54buf + f54len,
 				sizeof(f54buf) - f54len,
-				"HighResistance Test failed.\n\n");
+				"\nHighResistance Test failed.\n\n");
 	} else {
 		TOUCH_I("HighResistance Test passed.\n");
 		f54len += snprintf(f54buf + f54len,
 				sizeof(f54buf) - f54len,
-				"HighResistance Test passed.\n\n");
+				"\nHighResistance Test passed.\n\n");
 	}
 	return (result) ? 1 : 0;
 }
@@ -474,8 +570,7 @@ int CompareADCReport(void)
 		for (j = 0; j < (int)F12_2DRxCount; j++) {
 			if ((Image1[i][j] < ADCLowerImageLimit[i][j]) ||
 				(Image1[i][j] > ADCUpperImageLimit[i][j])) {
-				TOUCH_I(
-						"[Touch] Failed : Tx[%d] Rx[%d] -> LOWER : %d Upper : %d IMAGE DATA : %u\n",
+				TOUCH_I("[Touch] Failed : Tx[%d] Rx[%d] -> LOWER : %d Upper : %d IMAGE DATA : %u\n",
 					i, j, ADCLowerImageLimit[i][j],
 					ADCUpperImageLimit[i][j],
 					Image1[i][j]);
@@ -646,44 +741,94 @@ void CompareTRexOpenTestReport(int i)
 }
 
 /* Compare Report type #25 data against test limits*/
-int CompareTRexGroundTestReport(int i)
+int CompareTRexGroundTestReport(void)
 {
-	int index;
+	bool result = true;
+	int i, j, k = 0;
 
-	for (index = 0; index < 7; index++) {
-		if (Data[index] !=  TRX_Gnd[index]) {
-			f54len += snprintf(f54buf + f54len,
-					sizeof(f54buf) - f54len,
-					"\nTRex Ground Test failed.\n\n");
+	for (i = 0; i < TRX_BITMAP_LENGTH; i++) {
+		Data[i] &= TRxPhysical_bit[i];
+		if (Data[i] != TRX_Short[i]) {
+			err_array[i] = Data[i] ^ TRX_Short[i];
+			result = false;
 		}
 	}
 
-	f54len += snprintf(f54buf + f54len,
+	for (i = 0; i < TRX_BITMAP_LENGTH; i++) {
+		if (Data[i] != TRX_Gnd[i]) {
+			err_array[i] = Data[i] ^ TRX_Gnd[i];
+			result = false;
+		}
+	}
+
+	for (i = 0; i < TRX_BITMAP_LENGTH; i++) {
+		for (j = 0; j < 8; j++) {
+			k = 0x01 << j;
+			if (err_array[i] & k)
+			{
+				f54len += snprintf(f54buf + f54len,
+					sizeof(f54buf) - f54len,
+					"Fail, TRx[%d]\n", ((i * 8) + j));
+				result = false;
+			}
+		}
+	}
+
+	if (result) {
+		TOUCH_I("TRex-TRex Gnd Test passed.\n");
+		f54len += snprintf(f54buf + f54len,
 			sizeof(f54buf) - f54len,
-			"\nTRex Ground Test passed.\n\n");
-	return 1;
+			"TRex-TRex Gnd Test passed.\n\n");
+	} else {
+		TOUCH_I("TRex-TRex Gnd Test failed.\n");
+			f54len += snprintf(f54buf + f54len,
+					sizeof(f54buf) - f54len,
+					"TRex-TRex Gnd Test failed.\n\n");
+	}
+
+	return (result) ? 1 : 0;
 }
 
 /* Compare Report type #26 data against test limits*/
-int CompareTRexShortTestReport(int i)
+int CompareTRexShortTestReport(void)
 {
-	int index;
-	for (index = 0; index < 7; index++) {
-		if (Data[index] != TRX_Short[index]) {
-			TOUCH_I("TRex-TRex Short Test failed.\n");
-			f54len += snprintf(f54buf + f54len,
-					sizeof(f54buf) - f54len,
-					"\nTRex-TRex Short Test failed.\n\n");
-			return 0;
+	bool result = true;
+	int i, j, k = 0;
+
+	for (i = 0; i < TRX_BITMAP_LENGTH; i++) {
+		Data[i] &= TRxPhysical_bit[i];
+		if (Data[i] != TRX_Short[i]) {
+			err_array[i] = Data[i] ^ TRX_Short[i];
+			result = false;
 		}
 	}
 
-	TOUCH_I("TRex-TRex Short Test passed.\n");
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"\nTRex-TRex Short Test passed.\n\n");
+	for (i = 0; i < TRX_BITMAP_LENGTH; i++) {
+		for (j = 0; j < 8; j++) {
+			k = 0x01 << j;
+			if (err_array[i] & k)
+			{
+				f54len += snprintf(f54buf + f54len,
+					sizeof(f54buf) - f54len,
+					"Fail, TRx[%d]\n", ((i * 8) + j));
+				result = false;
+			}
+		}
+	}
 
-	return 1;
+	if (result) {
+		TOUCH_I("TRex-TRex Short Test passed.\n");
+		f54len += snprintf(f54buf + f54len,
+			sizeof(f54buf) - f54len,
+			"TRex-TRex Short Test passed.\n\n");
+	} else {
+		TOUCH_I("TRex-TRex Short Test failed.\n");
+			f54len += snprintf(f54buf + f54len,
+					sizeof(f54buf) - f54len,
+					"TRex-TRex Short Test failed.\n\n");
+	}
+
+	return (result) ? 1 : 0;
 }
 
 /* Compare Report type #2 data against test limits*/
@@ -842,6 +987,8 @@ int ReadImageReport(void)
 {
 	int ret = 0;
 	int i, j, k = 0;
+	int min = 9999;
+	int max = 0;
 
 	Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST),
 			&Data[0], MaxArrayLength);
@@ -849,28 +996,20 @@ int ReadImageReport(void)
 	TOUCH_I("Full Raw Capacitance Test\n");
 	f54len += snprintf(f54buf + f54len,
 			sizeof(f54buf) - f54len,
-			"\nInfo: Tx = %d Rx = %d\n",
+			"Tx = %d, Rx = %d\n",
 			(int)TxChannelCount, (int)RxChannelCount);
+
 	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"Image Data :\n");
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"==========================================================================================================\n         :");
+			sizeof(f54buf) - f54len, "   : ");
 
 	for (i = 0; i < (int)RxChannelCount; i++)
 		f54len += snprintf(f54buf + f54len,
-				sizeof(f54buf) - f54len,
-				"%5d ", i);
-
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"\n----------------------------------------------------------------------------------------------------------\n");
+				sizeof(f54buf) - f54len, " [%2d] ", i);
 
 	for (i = 0; i < (int)TxChannelCount; i++) {
 		f54len += snprintf(f54buf + f54len,
 				sizeof(f54buf) - f54len,
-				"   %5d : ", i);
+				"\n[%2d] ", i);
 		for (j = 0; j < (int)RxChannelCount; j++) {
 			Image1[i][j] = ((short)Data[k]
 					| (short)Data[k + 1] << 8);
@@ -880,19 +1019,26 @@ int ReadImageReport(void)
 					"%5d ",
 					ImagepF[i][j]);
 			k = k + 2;
+			if (ImagepF[i][j] != 0 &&
+				ImagepF[i][j] < min)
+				min = ImagepF[i][j];
+
+			if (ImagepF[i][j] > max)
+				max = ImagepF[i][j];
 		}
-		f54len += snprintf(f54buf + f54len,
-				sizeof(f54buf) - f54len,
-				"\n");
 	}
+
 	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"------------------------------------------------------------------------------------------------------------\n");
+				sizeof(f54buf) - f54len, "\n");
+
+	f54len += snprintf(f54buf + f54len,
+				sizeof(f54buf) - f54len,
+				"\nRawdata min : %d, max : %d\n", min, max);
 
 	ret = CompareImageReport();
 
 	write_file(f54buf, TIME_INFO_SKIP);
-	msleep(30);
+	touch_msleep(30);
 
 	/*Reset Device*/
 	Reset();
@@ -900,7 +1046,7 @@ int ReadImageReport(void)
 	return ret;
 }
 
-/* Construct data with Report Type #20 data*/
+/* Print Rawdata or Delta */
 int GetImageReport(char *buf)
 {
 	int ret = 0;
@@ -911,19 +1057,11 @@ int GetImageReport(char *buf)
 
 	*buf = 0;
 	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			"\n\nInfo: Tx = %d Rx = %d\n\n",
+			"Tx = %d, Rx = %d\n",
 			(int)TxChannelCount, (int)RxChannelCount);
-	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			"==========================================================================================================\n         :");
-
-	for (i = 0; i < (int)RxChannelCount; i++)
-		ret += snprintf(buf + ret, PAGE_SIZE - ret, "%5d ", i);
-
-	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			"\n----------------------------------------------------------------------------------------------------------\n");
 
 	for (i = 0; i < (int)TxChannelCount; i++) {
-		ret += snprintf(buf + ret, PAGE_SIZE - ret, "   %5d : ", i);
+		ret += snprintf(buf + ret, PAGE_SIZE - ret, "[%2d] ", i);
 		for (j = 0; j < (int)RxChannelCount; j++) {
 			Image1[i][j] = ((short)Data[k]
 					| (short)Data[k + 1] << 8);
@@ -934,8 +1072,6 @@ int GetImageReport(char *buf)
 		}
 		ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}
-	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			"------------------------------------------------------------------------------------------------------------\n");
 
 	/*Reset Device*/
 	Reset();
@@ -1040,7 +1176,7 @@ int ReadGndReport(void)
 
 	ret = CompareGndReport();
 	write_file(wbuf, TIME_INFO_SKIP);
-	msleep(30);
+	touch_msleep(30);
 
 	/*Reset Device*/
 	Reset();
@@ -1080,7 +1216,7 @@ int ReadNoiseReport(void)
 	}
 	ret = CompareNoiseReport();
 	write_file(wbuf, TIME_INFO_SKIP);
-	msleep(30);
+	touch_msleep(30);
 
 	Reset();
 
@@ -1090,72 +1226,61 @@ int ReadNoiseReport(void)
 /* Construct data with Report Type #4 data*/
 int ReadHighResistanceReport(void)
 {
-	short maxRx, maxTx, min;
-	int maxRxpF, maxTxpF, minpF;
 	int ret = 0;
-	int i = 0;
+	int i = 0, j = 0;
+	u32 k = 6;
 
-	Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST), Data, 6);
-
-	maxRx = ((short)Data[0] | (short)Data[1] << 8);
-	maxTx = ((short)Data[2] | (short)Data[3] << 8);
-	min = ((short)Data[4] | (short)Data[5] << 8);
-
-	maxRxpF = maxRx;
-	maxTxpF = maxTx;
-	minpF = min;
+	Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST), Data,
+			(2 * (3 + (((int)TxChannelCount + 1) * ((int)RxChannelCount + 1)))));
 
 	TOUCH_I("High Resistance Test\n");
 	f54len += snprintf(f54buf + f54len,
+			sizeof(f54buf) - f54len, "RxROE = ");
+	for (i = 0 ; i < (int)RxChannelCount ; i++) {
+		RXROE[i] = (short)Data[k] | ((short)Data[k + 1] << 8);
+		f54len += snprintf(f54buf + f54len,
 			sizeof(f54buf) - f54len,
-			"Max Rx Offset(pF) = %d\n", maxRxpF);
+			"%4d ", RXROE[i]);
+		k = k + 2;
+	}
+
 	f54len += snprintf(f54buf + f54len,
+			sizeof(f54buf) - f54len, "\nTxROE = ");
+	for (i = 0 ; i < (int)TxChannelCount ; i++) {
+		TXROE[i] = (short)Data[k] | ((short)Data[k + 1] << 8);
+		f54len += snprintf(f54buf + f54len,
 			sizeof(f54buf) - f54len,
-			"Max Tx Offset(pF) = %d\n", maxTxpF);
+			"%4d ", TXROE[i]);
+		k = k + 2;
+	}
+
 	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"Min(pF) = %d\n", minpF);
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-		"\n=====================================================\n");
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"\tHigh Resistance Test\n");
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-		"=====================================================\n");
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			" Parameters: ");
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"%5d %5d %5d ",
-			maxRxpF, maxTxpF, minpF);
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"\n\n Limits(+) : ");
-	for (i = 0; i < 3; i++)
+			sizeof(f54buf) - f54len, "\n   : ");;
+
+	for (i = 0; i < (int)RxChannelCount; i++)
+		f54len += snprintf(f54buf + f54len,
+				sizeof(f54buf) - f54len, " [%2d] ", i);
+
+	for (i = 0 ; i < (int)TxChannelCount ; i++) {
 		f54len += snprintf(f54buf + f54len,
 				sizeof(f54buf) - f54len,
-				"%5d ",
-				HighResistanceUpperLimit[i]);
+				"\n[%2d] ", i);
+		for (j = 0 ; j < (int)RxChannelCount ; j++) {
+			Image1[i][j] = (short)Data[k] | ((short)Data[k + 1] << 8);
+			ImagepF[i][j] = Image1[i][j];
+			f54len += snprintf(f54buf + f54len,
+					sizeof(f54buf) - f54len, "%5d ",
+					ImagepF[i][j]);
+			k = k + 2;
+		}
+	}
 
 	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-			"\n Limits(-) : ");
-	for (i = 0; i < 3; i++)
-		f54len += snprintf(f54buf + f54len,
-				sizeof(f54buf) - f54len,
-				"%5d ",
-				HighResistanceLowerLimit[i]);
+				sizeof(f54buf) - f54len, "\n");
 
-	f54len += snprintf(f54buf + f54len,
-			sizeof(f54buf) - f54len,
-		"\n-----------------------------------------------------\n");
-
-	ret = CompareHighResistance(maxRxpF, maxTxpF, minpF);
+	ret = CompareHighResistance();
 	write_file(f54buf, TIME_INFO_SKIP);
-	msleep(30);
+	touch_msleep(30);
 
 	/*Reset Device*/
 	Reset();
@@ -1216,7 +1341,7 @@ int ReadADCRangeReport(void)
 
 	ret = CompareADCReport();
 	write_file(wbuf, TIME_INFO_SKIP);
-	msleep(20);
+	touch_msleep(20);
 
 	/*Reset Device*/
 	Reset();
@@ -1474,7 +1599,7 @@ int ReadSensorSpeedReport(void)
 
 	ret = CompareSensorSpeedReport();
 	write_file(wbuf, TIME_INFO_SKIP);
-	msleep(20);
+	touch_msleep(20);
 
 	/*Reset Device*/
 	Reset();
@@ -1524,34 +1649,27 @@ void ReadTRexOpenReport(void)
 int ReadTRexGroundReport(void)
 {
 	int ret = 0;
-	int i, j = 0;
-	/* Hardcode for Waikiki Test and it support up to 54 Tx*/
-	int k = 7, mask = 0x01, value;
-	Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST), Data, k);
+	int i = 0;
 
-	for (i = 0; i < k; i++) {
-		value = Data[i];
-		Data[i] = 0;
-		for (j = 0; j < 8; j++) {
-			if ((value & mask) == 1) {
-				Data[i] = Data[i] +
-					(unsigned char)pow_func(2, (7 - j));
-			}
-			value >>= 1;
-		}
+	Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST), Data, TRX_BITMAP_LENGTH);
 
+	TOUCH_I("TRex-TRex Gnd Test\n");
+
+	for (i = 0; i < TRX_BITMAP_LENGTH; i++)	{
+		TRxPhysical_bit[i] = 0;
 		f54len += snprintf(f54buf + f54len,
 				sizeof(f54buf) - f54len,
-				"TRex-Ground Test Data = %#x\n", Data[i]);
+				"TRex-TRex Gnd Test Data = %#x\n", Data[i]);
 	}
+
 	f54len += snprintf(f54buf + f54len,
 			sizeof(f54buf) - f54len,
 			"\n");
 
-	ret = CompareTRexGroundTestReport(k * 8);
+	ret = CompareTRexGroundTestReport();
 
 	write_file(f54buf, TIME_INFO_SKIP);
-	msleep(30);
+	touch_msleep(30);
 	/*Reset Device*/
 	Reset();
 
@@ -1562,23 +1680,14 @@ int ReadTRexGroundReport(void)
 int ReadTRexShortReport(void)
 {
 	int ret = 0;
-	int i, j = 0;
-	/* Hardcode for Waikiki Test and it support up to 54 Tx*/
-	int k = 7, mask = 0x01, value;
+	int i= 0;
 
-	Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST), Data, k);
+	Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST), Data, TRX_BITMAP_LENGTH);
 
 	TOUCH_I("TRex-TRex Short Test\n");
-	for (i = 0; i < k; i++)	{
-		value = Data[i];
-		Data[i] = 0;
-		for (j = 0; j < 8; j++) {
-			if ((value & mask) == 1) {
-				Data[i] = Data[i] +
-					(unsigned char)pow_func(2, (7 - j));
-			}
-			value >>= 1;
-		}
+
+	for (i = 0; i < TRX_BITMAP_LENGTH; i++)	{
+		TRxPhysical_bit[i] = 0;
 		f54len += snprintf(f54buf + f54len,
 				sizeof(f54buf) - f54len,
 				"TRex-TRex Short Test Data = %#x\n", Data[i]);
@@ -1588,9 +1697,9 @@ int ReadTRexShortReport(void)
 			sizeof(f54buf) - f54len,
 			"\n");
 
-	ret = CompareTRexShortTestReport(k * 8);
+	ret = CompareTRexShortTestReport();
 	write_file(f54buf, TIME_INFO_SKIP);
-	msleep(30);
+	touch_msleep(30);
 
 	/*Reset Device*/
 	Reset();
@@ -1610,7 +1719,7 @@ void RspReadReport(enum EReportType input)
 
 	do {
 		Read8BitRegisters(F54CommandBase, &data, 1);
-		msleep(20);
+		touch_msleep(20);
 		count++;
 	} while (data != 0x00 && (count < DefaultTimeout));
 
@@ -1645,7 +1754,7 @@ int ReadReport(unsigned char input, char *buf)
 	do {
 		if (Read8BitRegisters(F54CommandBase, &data, 1) < 0)
 			goto error;
-		msleep(3);
+		touch_msleep(1);
 		count++;
 	} while (data != 0x00 && (count < DefaultTimeout));
 	if (count >= DefaultTimeout) {
@@ -1813,9 +1922,9 @@ void RunQueries(void)
 				F12_2DRxCount = Data[12];
 				F12_2DTxCount = Data[13];
 
-				if (TRX_max <= F12_2DRxCount)
-					F12_2DRxCount = TRX_max;
-				if (TRX_max <= F12_2DTxCount)
+				if (TRX_MAX <= F12_2DRxCount)
+					F12_2DRxCount = TRX_MAX;
+				if (TRX_MAX <= F12_2DTxCount)
 					F12_2DTxCount = 16;
 
 				offset = 0;
@@ -1841,10 +1950,10 @@ void RunQueries(void)
 				Read8BitRegisters((F54QueryBase + 1),
 						&TxChannelCount, 1);
 
-				if (TRX_max <= RxChannelCount)
-					RxChannelCount = TRX_max;
-				if (TRX_max <= TxChannelCount)
-					TxChannelCount = TRX_max;
+				if (TRX_MAX <= RxChannelCount)
+					RxChannelCount = TRX_MAX;
+				if (TRX_MAX <= TxChannelCount)
+					TxChannelCount = TRX_MAX;
 
 				MaxArrayLength = (int)RxChannelCount
 					* (int)TxChannelCount * 2;
@@ -1992,8 +2101,9 @@ void RunQueries(void)
 					F54Ctrl41Offset = offset;
 					offset++; /*Ctrl 41*/
 					/*bHaveF54Ctrl41 = bSignalClarityOn*/
-					bHaveF54Ctrl41 = true;
-				}
+					SignalClarityOn = true;
+				} else
+					SignalClarityOn = false;
 
 				bHaveMultiMetricStateMachine =
 					((Data[10] & 0x02) == 0x02);
@@ -2106,6 +2216,10 @@ void RunQueries(void)
 				}
 				bHaveCtrl89 = ((Data[q_offset]
 							& 0x20) == 0x20);
+				bHaveCtrl89 = (bHaveCtrl89 | ((Data[q_offset]
+							& 0x40) == 0x40));
+				bHaveCtrl89 = (bHaveCtrl89 | ((Data[q_offset]
+							& 0x80) == 0x80));
 				if (bHaveCtrl89)
 					offset++;
 				bHaveF54Query15 = ((Data[12] & 0x80)
@@ -2189,8 +2303,10 @@ void RunQueries(void)
 						 == 0x01);
 				} else
 					bHaveCtrl102 = false;
-				if (bHaveCtrl91)
+				if (bHaveCtrl91) {
+					F54Ctrl91Offset = offset;
 					offset++;
+				}
 				if (bHaveCtrl92)
 					offset++;
 				if (bHaveCtrl93)
@@ -2199,8 +2315,10 @@ void RunQueries(void)
 					offset++;
 				if (bHaveCtrl95)
 					offset++;
-				if (bHaveCtrl96)
+				if (bHaveCtrl96) {
+					F54Ctrl96Offset = offset;
 					offset++;
+				}
 				if (bHaveCtrl97)
 					offset++;
 				if (bHaveCtrl98) {
@@ -2294,7 +2412,8 @@ void RunQueries(void)
 				}
 				if (bHaveF54Query24)
 					q_offset++;
-				q_offset++; /*Query 25*/
+				if (bHaveF54Query25)
+					q_offset++; /*Query 25*/
 				bHaveF54Ctrl106 =
 					((Data[q_offset] & 0x01) == 0x01);
 				bHaveF54Ctrl107 =
@@ -2340,12 +2459,18 @@ void RunQueries(void)
 					bHaveF54Ctrl116 =
 						((Data[q_offset] & 0x10)
 						 == 0x10);
+					bHaveF54Ctrl117 =
+						((Data[q_offset] & 0x40)
+						 == 0x40);
 					bHaveF54Query30 =
 						((Data[q_offset] & 0x80)
 						 == 0x80);
 				}
 				if (bHaveF54Query30) {
 					q_offset++;
+					bHaveF54Ctrl118 =
+						((Data[q_offset] & 0x01)
+						 == 0x01);
 					bHaveF54Ctrl119 =
 						((Data[q_offset] & 0x02)
 						 == 0x02);
@@ -2393,6 +2518,18 @@ void RunQueries(void)
 				}
 				if (bHaveF54Query33) {
 					q_offset++;
+					bHaveF54Ctrl128 =
+						((Data[q_offset] & 0x01)
+						 == 0x01);
+					bHaveF54Ctrl129 =
+						((Data[q_offset] & 0x02)
+						 == 0x02);
+					bHaveF54Ctrl130 =
+						((Data[q_offset] & 0x04)
+						 == 0x04);
+					bHaveF54Ctrl131 =
+						((Data[q_offset] & 0x08)
+						 == 0x08);
 					bHaveF54Ctrl132 =
 						((Data[q_offset] & 0x10)
 						 == 0x10);
@@ -2410,6 +2547,12 @@ void RunQueries(void)
 					q_offset++;
 				if (bHaveF54Query35) {
 					q_offset++;
+					bHaveF54Ctrl135 =
+						((Data[q_offset] & 0x02)
+						 == 0x02);
+					bHaveF54Ctrl136 =
+						((Data[q_offset] & 0x04)
+						 == 0x04);
 					bHaveF54Ctrl137 =
 						((Data[q_offset] & 0x08)
 						 == 0x08);
@@ -2425,6 +2568,9 @@ void RunQueries(void)
 				}
 				if (bHaveF54Query36) {
 					q_offset++;
+					bHaveF54Ctrl141 =
+						((Data[q_offset] & 0x01)
+						 == 0x01);
 					bHaveF54Ctrl142 =
 						((Data[q_offset] & 0x02)
 						 == 0x02);
@@ -2460,19 +2606,131 @@ void RunQueries(void)
 					bHaveF54Ctrl149 =
 						((Data[q_offset] & 0x04)
 						 == 0x04);
+					bHaveF54Query39 =
+						((Data[q_offset] & 0x80)
+						 == 0x80);
+				}
+				if (bHaveF54Query39) {
+					q_offset++;
+					bHaveF54Ctrl154 =
+						((Data[q_offset] & 0x01)
+						 == 0x01);
+					bHaveF54Query40 =
+						((Data[q_offset] & 0x80)
+						 == 0x80);
+				}
+				if (bHaveF54Query40) {
+					q_offset++;
+					bHaveF54Ctrl163 = bHaveF54Query41 =
+						((Data[q_offset] & 0x02)
+						 == 0x02);
+					bHaveF54Ctrl164 =
+						((Data[q_offset] & 0x04)
+						 == 0x04);
+					bHaveF54Ctrl165 = bHaveF54Query42 =
+						((Data[q_offset] & 0x08)
+						 == 0x08);
+					bHaveF54Ctrl166 =
+						((Data[q_offset] & 0x10)
+						 == 0x10);
+					bHaveF54Ctrl167 =
+						((Data[q_offset] & 0x20)
+						 == 0x20);
+					bHaveF54Query43 =
+						((Data[q_offset] & 0x80)
+						 == 0x80);
+				}
+				if (bHaveF54Query41)
+					q_offset++;
+				if (bHaveF54Query42)
+					q_offset++;
+				if (bHaveF54Query43) {
+					q_offset++;
+					bHaveF54Ctrl172 = bHaveF54Query44 = bHaveF54Query45 =
+						((Data[q_offset] & 0x08)
+						== 0x08);
+					bHaveF54Ctrl173 =
+						((Data[q_offset] & 0x10)
+						== 0x10);
+					bHaveF54Ctrl175 =
+						((Data[q_offset] & 0x40)
+						== 0x40);
+					bHaveF54Query46 =
+						((Data[q_offset] & 0x80)
+						== 0x80);
+				}
+				if (bHaveF54Query44)
+					q_offset++;
+				if (bHaveF54Query45)
+					q_offset++;
+				if (bHaveF54Query46) {
+					q_offset++;
+					bHaveF54Ctrl176 =
+						((Data[q_offset] & 0x01)
+						== 0x01);
+					bHaveF54Ctrl179 =
+						((Data[q_offset] & 0x04)
+						== 0x04);
+					bHaveF54Query47 =
+						((Data[q_offset] & 0x80)
+						== 0x80);
+				}
+				if (bHaveF54Query47) {
+					q_offset++;
+					bHaveF54Ctrl185 =
+						((Data[q_offset] & 0x10)
+						== 0x10);
+					bHaveF54Ctrl186 =
+						((Data[q_offset] & 0x20)
+						== 0x20);
+					bHaveF54Ctrl187 =
+						((Data[q_offset] & 0x40)
+						== 0x40);
+					bHaveF54Query49 =
+						((Data[q_offset] & 0x80)
+						== 0x80);
+				}
+				if (bHaveF54Query49) {
+					q_offset++;
+					bHaveF54Ctrl188 =
+						((Data[q_offset] & 0x04)
+						== 0x04);
+					bHaveF54Ctrl189 =
+						((Data[q_offset] & 0x20)
+						== 0x20);
+				}
+				if (bHaveF54Query50) {
+					q_offset++;
+					bHaveF54Query51 =
+						((Data[q_offset] & 0x80)
+						== 0x80);
+				}
+				if (bHaveF54Query51) {
+					q_offset++;
+					bHaveF54Ctrl198 =
+						((Data[q_offset] & 0x20)
+						== 0x20);
+					bHaveF54Query54 = bHaveF54Query53 =
+						((Data[q_offset] & 0x20)
+						== 0x20);
+				}
+				if (bHaveF54Query53) {
+					q_offset++;
+					F54Query54Sub0 = (Data[q_offset]);
+					q_offset++;
+					F54Query54Sub1 = (Data[q_offset]);
+				}
+				if (bHaveF54Query54) {
+					q_offset++;	/* ANALOG_QUERY54(00)/00 */
+					q_offset++;	/* ANALOG_QUERY54(01)/00 */
+					q_offset += F54Query54Sub0;	/* ANALOG_QUERY54(02)/00 */
+					q_offset++;	/* command 0 */
+					F54Ctrl198_00_Size = (Data[q_offset]);
+					q_offset += 2;	/* command 1 */
+					F54Ctrl198_01_Size = (Data[q_offset]);
 				}
 				/* from Ctrl 103*/
-				bHaveF54Ctrl117 = true; /*Reserved*/
-				bHaveF54Ctrl118 = false; /*Reserved*/
-				bHaveF54Ctrl124 = false; /*Reserved*/
-				bHaveF54Ctrl128 = false; /*Reserved*/
-				bHaveF54Ctrl129 = false; /*Reserved*/
-				bHaveF54Ctrl130 = false; /*Reserved*/
-				bHaveF54Ctrl131 = false; /*Reserved*/
-				bHaveF54Ctrl135 = false; /*Reserved*/
-				bHaveF54Ctrl136 = false; /*Reserved*/
-				bHaveF54Ctrl141 = false; /*Reserved*/
-				offset = offset - 1;
+				bHaveF54Ctrl124 = false;	/*Reserved*/
 				if (bHaveF54Ctrl103)
 					offset++;
 				if (bHaveF54Ctrl104)
@@ -2569,6 +2827,90 @@ void RunQueries(void)
 					offset++;
 					F54Ctrl149Offset = offset;
 				}
+				if (bHaveF54Ctrl150)
+					offset++;
+				if (bHaveF54Ctrl151)
+					offset++;
+				if (bHaveF54Ctrl112)
+					offset++;
+				if (bHaveF54Ctrl153)
+					offset++;
+				if (bHaveF54Ctrl154)
+					offset++;
+				if (bHaveF54Ctrl155)
+					offset++;
+				if (bHaveF54Ctrl156)
+					offset++;
+				if (bHaveF54Ctrl157)
+					offset++;
+				if (bHaveF54Ctrl158)
+					offset++;
+				if (bHaveF54Ctrl159)
+					offset++;
+				if (bHaveF54Ctrl150)
+					offset++;
+				if (bHaveF54Ctrl161)
+					offset++;
+				if (bHaveF54Ctrl162)
+					offset++;
+				if (bHaveF54Ctrl163)
+					offset++;
+				if (bHaveF54Ctrl164)
+					offset++;
+				if (bHaveF54Ctrl165)
+					offset++;
+				if (bHaveF54Ctrl166)
+					offset++;
+				if (bHaveF54Ctrl167)
+					offset++;
+				if (bHaveF54Ctrl168)
+					offset++;
+				if (bHaveF54Ctrl169)
+					offset++;
+				if (bHaveF54Ctrl170)
+					offset++;
+				if (bHaveF54Ctrl171)
+					offset++;
+				if (bHaveF54Ctrl172)
+					offset++;
+				if (bHaveF54Ctrl173)
+					offset++;
+				if (bHaveF54Ctrl174)
+					offset++;
+				if (bHaveF54Ctrl175)
+					offset++;
+				if (bHaveF54Ctrl176)
+					offset++;
+				if (bHaveF54Ctrl177)
+					offset++;
+				if (bHaveF54Ctrl178)
+					offset++;
+				if (bHaveF54Ctrl179)
+					offset++;
+				if (bHaveF54Ctrl180)
+					offset++;
+				if (bHaveF54Ctrl181)
+					offset++;
+				if (bHaveF54Ctrl182)
+					offset++;
+				if (bHaveF54Ctrl183)
+					offset++;
+				if (bHaveF54Ctrl184)
+					offset++;
+				if (bHaveF54Ctrl185)
+					offset++;
+				if (bHaveF54Ctrl186)
+					offset++;
+				if (bHaveF54Ctrl187)
+					offset++;
+				if (bHaveF54Ctrl188) {
+					offset++;
+					F54Ctrl188Offset = offset;
+				}
+				if (bHaveF54Ctrl189) {
+					offset++;
+					F54Ctrl189Offset = offset;
+				}
 			}
 			break;
 		case 0x55:
@@ -2612,10 +2954,10 @@ void RunQueries(void)
 
 				RxChannelCount = rxCount;
 				TxChannelCount = txCount;
-				if (TRX_max <= RxChannelCount)
-					RxChannelCount = TRX_max;
-				if (TRX_max <= TxChannelCount)
-					TxChannelCount = TRX_max;
+				if (TRX_MAX <= RxChannelCount)
+					RxChannelCount = TRX_MAX;
+				if (TRX_MAX <= TxChannelCount)
+					TxChannelCount = TRX_MAX;
 
 				MaxArrayLength = (int)RxChannelCount
 					* (int)TxChannelCount * 2;
@@ -2658,6 +3000,14 @@ int TestPreparation(void)
 		Write8BitRegisters(addr, &data, 1);
 	}
 
+	/* Turn off CBC2.*/
+	if (bHaveF54Ctrl149) {
+		addr = F54ControlBase + F54Ctrl149Offset;
+		Read8BitRegisters(addr, &data, 1);
+		data = data & 0xFE;
+		Write8BitRegisters(addr, &data, 1);
+	}
+
 	/* Turn off 0D CBC.*/
 	if (bHaveF54Ctrl57) {
 		addr = F54ControlBase + F54Ctrl57Offset;
@@ -2670,7 +3020,7 @@ int TestPreparation(void)
 	/* Turn off SignalClarity.
 	   ForceUpdate is required for the change to be effective
 	   */
-	if (bHaveF54Ctrl41) {
+	if (bHaveSignalClarity) {
 		addr = F54ControlBase + F54Ctrl41Offset;
 		Read8BitRegisters(addr, &data, 1);
 		data = data | 0x01;
@@ -2681,11 +3031,12 @@ int TestPreparation(void)
 	Read8BitRegisters(F54CommandBase, &data, 1);
 	data = data | 0x04;
 	Write8BitRegisters(F54CommandBase, &data, 1);
+
 	/* Wait complete*/
 	count = 0;
 	do {
 		Read8BitRegisters(F54CommandBase, &data, 1);
-		msleep(3);
+		touch_msleep(3);
 		count++;
 	} while (data != 0x00 && (count < DefaultTimeout));
 
@@ -2704,7 +3055,7 @@ int TestPreparation(void)
 	count = 0;
 	do {
 		Read8BitRegisters(F54CommandBase, &data, 1);
-		msleep(3);
+		touch_msleep(3);
 		count++;
 	} while (data != 0x00 && (count < DefaultTimeout));
 
@@ -2763,7 +3114,7 @@ int diffnode(unsigned short *ImagepTest)
 		count = 0;
 		do {
 			Read8BitRegisters(F54CommandBase, &data, 1);
-			msleep(20);
+			touch_msleep(20);
 			count++;
 		} while (data != 0x00 && (count < DefaultTimeout));
 		if (count >= DefaultTimeout) {
@@ -3282,7 +3633,7 @@ int RspNoiseP2PTest(void)
 	}
 
 	if (isPassed) {
-		TOUCH_I("RSP Noise P-P Test Passed.\n");
+		TOUCH_I("RSP Noise P-P Test Passed.");
 		wlen += snprintf(wbuf + wlen,
 				sizeof(wbuf) - wlen,
 				"RSP Noise P-P Test Passed.\n\n\n");
@@ -3294,7 +3645,7 @@ int RspNoiseP2PTest(void)
 	}
 
 	write_file(wbuf, TIME_INFO_SKIP);
-	msleep(50);
+	touch_msleep(50);
 	TOUCH_I("RSP Raw Noise P-P Test - Completed\n");
 	return (isPassed) ? 1 : 0;
 }
@@ -3321,7 +3672,7 @@ void RspSetFreq(unsigned char i)
 	TOUCH_I("%s\n", __func__);
 
 	switchPage(0x01);
-	msleep(15);
+	touch_msleep(15);
 
 	setValue = i << 2;
 	if (i <= 3) {
@@ -3421,7 +3772,7 @@ void RspShortTestCalibration(void)
 	count = 0;
 	do {
 		Read8BitRegisters(addr, &data, 1);
-		msleep(20);
+		touch_msleep(20);
 		count++;
 	} while ((data & 0x40) && (count < DefaultTimeout));
 
@@ -3439,7 +3790,7 @@ void RspGetShortTestRawData(void)
 
 	for (i = 0; i < 5; i++) {
 		RspShortTestCalibration();
-		msleep(20);
+		touch_msleep(20);
 		RspReadReport(eRT_RSPGroupTest);
 		for (j = 0; j < RSP_MAX_ROW; j++)
 			for (k = 0; k < RSP_MAX_COL; k++)
@@ -3513,7 +3864,7 @@ int RspShortTestCheckData(void)
 				"\nRSP Short Test Failed.\n\n\n");
 	}
 	write_file(wbuf, TIME_INFO_SKIP);
-	msleep(50);
+	touch_msleep(50);
 	TOUCH_I("RSP Short Test - Completed\n");
 	return (isPassed) ? 1 : 0;
 }
@@ -3772,6 +4123,7 @@ int RspCalTest(char *buf)
 
 }
 
+#if 0
 int RspReadCal(void)
 {
 	int ret = 0;
@@ -3803,7 +4155,7 @@ int RspReadCal(void)
 			}
 
 			buffer = (buffer & 0x01);
-			msleep(10);
+			touch_msleep(10);
 			retry_cnt--;
 
 			if (retry_cnt <= 0) {
@@ -3840,11 +4192,12 @@ int RspReadCal(void)
 	return ret;
 
 error:
-	TOUCH_E("[%s] Fail to get Calibration Data\n", __func__);
+	TOUCH_E("[%s] Fail to get Calibration Data", __func__);
 	ret = -EIO;
 	return ret;
 
 }
+#endif
 int RspLpwgRawDataTest(void)
 {
 	bool isPassed = true;
@@ -3925,7 +4278,7 @@ int RspLpwgRawDataTest(void)
 	}
 
 	if (isPassed) {
-		TOUCH_I("RSP LPWG Raw Capacitance Image Test passed.\n");
+		TOUCH_I("RSP LPWG Raw Capacitance Image Test passed.");
 		f54len += snprintf(f54buf + f54len,
 				sizeof(f54buf) - f54len,
 				"RSP LPWG Raw Capacitance Image Test passed.\n\n\n");
@@ -3965,7 +4318,7 @@ int GroupNormalTest(int mode, char *buf)
 			Write8BitRegisters(F54CommandBase, &data, 1);
 			do {
 				Read8BitRegisters(F54CommandBase, &data, 1);
-				msleep(20);
+				touch_msleep(20);
 				count++;
 			} while (data != 0x00 && (count < DefaultTimeout));
 
@@ -3978,7 +4331,7 @@ int GroupNormalTest(int mode, char *buf)
 			Write8BitRegisters(F54CommandBase, &data, 1);
 			do {
 				Read8BitRegisters(F54CommandBase, &data, 1);
-				msleep(20);
+				touch_msleep(20);
 				count++;
 			} while (data != 0x00 && (count < DefaultTimeout));
 
@@ -3997,7 +4350,7 @@ int GroupNormalTest(int mode, char *buf)
 		case RSP_CAL_TEST:
 			RspSetReportType(84);
 			RspResetReportAddress();
-			RspReadCal();
+			//RspReadCal();
 			break;
 		case RSP_LPWG_RAW_DATA:
 			RspSetFreq(f_LPWG);
@@ -4074,7 +4427,7 @@ void CheckCrash(char *rst, int min_caps_value)
 	do {
 		if (Read8BitRegisters(F54CommandBase, &cmd, 1) < 0)
 			goto error;
-		msleep(3);
+		touch_msleep(3);
 		count++;
 	} while (cmd != 0x00 && (count < DefaultTimeout));
 
@@ -4201,61 +4554,61 @@ retry:
 	switch (input) {
 	case 'a':
 		f54len = strlcpy(f54buf,
-				"a - Full Raw Capacitance Test\n",
+				"[Full Raw Capacitance Test]\n",
 				sizeof(f54buf));
 		ret = ImageTest(mode, buf);
 		break;
 	case 'b':
-		wlen = strlcpy(wbuf, "b - ADC Range Test\n",
+		wlen = strlcpy(wbuf, "[ADC Range Test]\n",
 				sizeof(wbuf));
 		ret = ADCRange(buf);
 		break;
 	case 'c':
-		wlen = strlcpy(wbuf, "c - Sensor Speed Test\n",
+		wlen = strlcpy(wbuf, "[Sensor Speed Test]\n",
 				sizeof(wbuf));
 		ret = SensorSpeed(buf);
 		break;
 	case 'd':
-		f54len = strlcpy(f54buf, "d - TRex Open Test\n",
+		f54len = strlcpy(f54buf, "[TRex Open Test]\n",
 				sizeof(f54buf));
 		TRexOpenTest(buf);
 		break;
 	case 'e':
-		f54len = strlcpy(f54buf, "e - TRex Gnd Test\n",
+		f54len = strlcpy(f54buf, "[TRex Gnd Test]\n",
 				sizeof(f54buf));
 		ret = TRexGroundTest(buf);
 		break;
 	case 'f':
-		f54len = strlcpy(f54buf, "f - TRex Short Test\n",
+		f54len = strlcpy(f54buf, "[TRex Short Test]\n",
 				sizeof(f54buf));
 		ret = TRexShortTest(buf);
 		break;
 	case 'g':
-		f54len = strlcpy(f54buf, "g - High Resistance Test\n",
+		f54len = strlcpy(f54buf, "[High Resistance Test]\n",
 				sizeof(f54buf));
 		ret = HighResistanceTest(buf);
 		break;
 	case 'h':
 		f54len = strlcpy(f54buf,
-				"h - Full Raw Capacitance Max/Min Test\n",
+				"[Full Raw Capacitance Max/Min Test]\n",
 				sizeof(f54buf));
 		MaxMinTest(buf);
 		break;
 	case 'i':
 		f54len = strlcpy(f54buf,
-				"i - Abs Sensing ADC Range Test\n",
+				"[Abs Sensing ADC Range Test]\n",
 				sizeof(f54buf));
 		AbsADCRange(buf);
 		break;
 	case 'j':
 		f54len = strlcpy(f54buf,
-				"j - Abs Sensing Delta Capacitance\n",
+				"[Abs Sensing Delta Capacitance]\n",
 				sizeof(f54buf));
 		ret = AbsDelta(buf);
 		break;
 	case 'k':
 		f54len = strlcpy(f54buf,
-				"k - Abs Sensing Raw Capcitance Test\n",
+				"[Abs Sensing Raw Capcitance Test]\n",
 				sizeof(f54buf));
 		AbsRaw(mode, buf);
 		break;
@@ -4267,37 +4620,37 @@ retry:
 		break;
 	case 'n':
 		f54len = strlcpy(f54buf,
-				"n - Abs Sensing Raw Short Capcitance Test\n",
+				"[Abs Sensing Raw Short Capcitance Test]\n",
 				sizeof(f54buf));
 		ret = AbsRaw(mode, buf);
 		break;
 	case 'o':
 		f54len = strlcpy(f54buf,
-				"k - Abs Sensing Raw Open Capcitance Test\n",
+				"[Abs Sensing Raw Open Capcitance Test]\n",
 				sizeof(f54buf));
 		ret = AbsRaw(mode, buf);
 		break;
 	case 'q':
 		f54len = strlcpy(f54buf,
-				"q - RSP Group Normal Test\n",
+				"[RSP Group Normal Test]\n",
 				sizeof(f54buf));
 		ret = GroupNormalTest(mode, buf);
 		break;
 	case 's':
 		f54len = strlcpy(f54buf,
-				"s - RSP Short Test\n",
+				"[RSP Short Test]\n",
 				sizeof(f54buf));
 		ret = RspShortTest();
 		break;
 	case 'x':
 		wlen = strlcpy(wbuf,
-				"x - Noise Delta Test\n",
+				"[Noise Delta Test]\n",
 				sizeof(wbuf));
 		ret = NoiseDeltaTest(buf);
 		break;
 	case 'y':
 		wlen = strlcpy(wbuf,
-				"y - GND Test\n",
+				"[GND Test]\n",
 				sizeof(wbuf));
 		ret = GndTest(buf);
 		break;

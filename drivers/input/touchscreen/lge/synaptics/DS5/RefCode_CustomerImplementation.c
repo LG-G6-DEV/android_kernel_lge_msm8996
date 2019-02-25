@@ -565,7 +565,7 @@ int get_limit(unsigned char Tx, unsigned char Rx, struct i2c_client client,
 		q = found - line;
 	} else {
 		TOUCH_I(
-				"failed to find breakpoint. The panel_spec_file is wrong\n");
+				"failed to find breakpoint. The panel_spec_file is wrong");
 		ret = -1;
 		goto exit;
 	}
