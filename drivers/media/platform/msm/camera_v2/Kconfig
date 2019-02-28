@@ -267,6 +267,17 @@ config MSM_JPEGDMA
 	---help---
 	  Enable support for Jpeg dma engine.
 
+config MSM_SEC_CCI_TA_NAME
+	string "Name of TA to handle Secure CCI transactions"
+	depends on MSM_CCI
+	default "seccamdemo64"
+
+config MSM_SEC_CCI_DEBUG
+	bool "QTI MSM Secure CCI Relay Debug"
+	depends on MSM_CCI
+	---help---
+	  Enables simulation of secure camera for Secure CCI Realy
+	  debugging.
 config LGE_CAMERA_DRIVER
 	bool "LG Camera Support"
 	depends on MSMB_CAMERA
