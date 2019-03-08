@@ -120,6 +120,11 @@ found:
 					name, rc);
 		}
 
+		rc = regulator_set_optimum_mode(vreg, vreg_conf[i].ua_load);
+		if (rc < 0)
+			dev_err(dev, "Unable to set current on %s, %d\n",
+					name, rc);
+
 		rc = regulator_enable(vreg);
 		if (rc) {
 			dev_err(dev, "error enabling %s: %d\n", name, rc);
@@ -187,7 +192,7 @@ static int select_pin_ctl(struct fpc1020_data *fpc1020, const char *name)
 			if (rc)
 				dev_err(dev, "cannot select '%s'\n", name);
 			else
-				dev_info(dev, "Selected '%s'\n", name);
+				dev_dbg(dev, "Selected '%s'\n", name);
 			goto exit;
 		}
 	}
@@ -618,39 +623,17 @@ static int fpc1020_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int fpc1020_sys_suspend(struct device *dev)
-{
-	struct fpc1020_data *f = dev_get_drvdata(dev);
-
-	enable_irq_wake(gpio_to_irq(f->irq_gpio));
-	return 0;
-}
-
-static int fpc1020_sys_resume(struct device *dev)
-{
-	struct fpc1020_data *f = dev_get_drvdata(dev);
-
-	disable_irq_wake(gpio_to_irq(f->irq_gpio));
-	return 0;
-}
-
 static const struct of_device_id fpc1020_of_match[] = {
 	{ .compatible = "fpc,fpc1020", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, fpc1020_of_match);
 
-static const struct dev_pm_ops fpc1020_pm_ops = {
-	.suspend = fpc1020_sys_suspend,
-	.resume = fpc1020_sys_resume,
-};
-
 static struct platform_driver fpc1020_driver = {
 	.driver = {
 		.name	= "fpc1020",
 		.owner	= THIS_MODULE,
 		.of_match_table = fpc1020_of_match,
-		.pm = &fpc1020_pm_ops,
 	},
 	.probe	= fpc1020_probe,
 	.remove	= fpc1020_remove,
