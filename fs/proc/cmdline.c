@@ -36,6 +36,7 @@ static int cmdline_proc_show(struct seq_file *m, void *v)
 	if (lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO) {
 		proc_cmdline_set("androidboot.mode", "charger");
 	}
+	proc_cmdline_set("androidboot.verifiedbootstate", "green");
 #endif
 
 	seq_printf(m, "%s\n", updated_command_line);
