@@ -5830,7 +5830,6 @@ static enum power_supply_property fg_power_props[] = {
 #ifdef CONFIG_LGE_PM_FG_AGE
 	POWER_SUPPLY_PROP_BATTERY_CONDITION,
 	POWER_SUPPLY_PROP_BATTERY_AGE,
-	POWER_SUPPLY_PROP_BATTERY_AGE_LEVEL,
 #endif
 };
 
@@ -5964,9 +5963,6 @@ static int fg_power_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_BATTERY_AGE:
 		val->intval = fg_age_ratio(chip);
-		break;
-	case POWER_SUPPLY_PROP_BATTERY_AGE_LEVEL:
-		val->intval = fg_age_detection_level(chip);
 		break;
 #endif
 	default:
