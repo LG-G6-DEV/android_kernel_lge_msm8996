@@ -51,7 +51,7 @@
 
 #define MAX_BUF_SIZE  1024
 
-static int msm_pm_debug_mask = 1;
+static int msm_pm_debug_mask = 0;
 module_param_named(
 	debug_mask, msm_pm_debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP
 );
@@ -550,7 +550,7 @@ static int msm_cpu_status_probe(struct platform_device *pdev)
 	u32 cpu;
 	int rc;
 
-	if (!pdev | !pdev->dev.of_node)
+	if (!pdev || !pdev->dev.of_node)
 		return -EFAULT;
 
 	msm_pm_slp_sts = devm_kzalloc(&pdev->dev,

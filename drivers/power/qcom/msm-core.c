@@ -308,7 +308,7 @@ static __ref int do_sampling(void *data)
 	static int prev_temp[NR_CPUS];
 
 	while (!kthread_should_stop()) {
-		wait_for_completion_interruptible(&sampling_completion);
+		wait_for_completion(&sampling_completion);
 		cancel_delayed_work(&sampling_work);
 
 		mutex_lock(&kthread_update_mutex);
@@ -332,8 +332,7 @@ static __ref int do_sampling(void *data)
 		if (!poll_ms)
 			goto unlock;
 
-		queue_delayed_work(system_power_efficient_wq,
-			&sampling_work,
+		schedule_delayed_work(&sampling_work,
 			msecs_to_jiffies(poll_ms));
 unlock:
 		mutex_unlock(&kthread_update_mutex);
@@ -509,7 +508,7 @@ static long msm_core_ioctl(struct file *file, unsigned int cmd,
 
 		mutex_lock(&policy_update_mutex);
 		node = &activity[cpu];
-		if (!node->sp->table || !node->sp->voltage) {
+		if (!node->sp->table) {
 			ret = -EINVAL;
 			goto unlock;
 		}
@@ -1084,8 +1083,7 @@ static int msm_core_dev_probe(struct platform_device *pdev)
 
 #ifndef CONFIG_MACH_LGE
 #endif
-	queue_delayed_work(system_power_efficient_wq,
-		&sampling_work, msecs_to_jiffies(0));
+	schedule_delayed_work(&sampling_work, msecs_to_jiffies(0));
 	cpufreq_register_notifier(&cpu_policy, CPUFREQ_POLICY_NOTIFIER);
 	pm_notifier(system_suspend_handler, 0);
 	return 0;
