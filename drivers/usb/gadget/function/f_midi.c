@@ -251,8 +251,6 @@ static void f_midi_read_data(struct usb_ep *ep, int cable,
 
 	if (!test_bit(cable, &midi->out_triggered))
 		return;
-
-	snd_rawmidi_receive(substream, data, length);
 }
 
 static void f_midi_handle_out_data(struct usb_ep *ep, struct usb_request *req)
@@ -600,10 +598,6 @@ static void f_midi_transmit(struct f_midi *midi, struct usb_request *req)
 
 		while (req->length + 3 < midi->buflen) {
 			uint8_t b;
-			if (snd_rawmidi_transmit(substream, &b, 1) != 1) {
-				port->active = 0;
-				break;
-			}
 			f_midi_transmit_byte(req, port, b);
 		}
 	}
@@ -744,12 +738,7 @@ static int f_midi_register_card(struct f_midi *midi)
 
 	/* Set up rawmidi */
 	snd_component_add(card, "MIDI");
-	err = snd_rawmidi_new(card, card->longname, 0,
-			      midi->out_ports, midi->in_ports, &rmidi);
-	if (err < 0) {
-		ERROR(midi, "snd_rawmidi_new() failed: error %d\n", err);
-		goto fail;
-	}
+
 	midi->rmidi = rmidi;
 	strcpy(rmidi->name, card->shortname);
 	rmidi->info_flags = SNDRV_RAWMIDI_INFO_OUTPUT |
@@ -761,8 +750,6 @@ static int f_midi_register_card(struct f_midi *midi)
 	 * Yes, rawmidi OUTPUT = USB IN, and rawmidi INPUT = USB OUT.
 	 * It's an upside-down world being a gadget.
 	 */
-	snd_rawmidi_set_ops(rmidi, SNDRV_RAWMIDI_STREAM_OUTPUT, &gmidi_in_ops);
-	snd_rawmidi_set_ops(rmidi, SNDRV_RAWMIDI_STREAM_INPUT, &gmidi_out_ops);
 
 	/* register it - we're ready to go */
 	err = snd_card_register(card);
