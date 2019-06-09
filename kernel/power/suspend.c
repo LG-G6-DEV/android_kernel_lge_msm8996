@@ -563,7 +563,7 @@ static int enter_state(suspend_state_t state)
 #else
 	printk(KERN_INFO "PM: Syncing filesystems ... ");
 	sys_sync();
-	printk("done.\n");
+	pr_debug("done.\n");
 #endif
 	trace_suspend_resume(TPS("sync_filesystems"), 0, false);
 
