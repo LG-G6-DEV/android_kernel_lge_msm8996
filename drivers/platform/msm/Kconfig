@@ -324,4 +324,7 @@ config LGE_QPNP_REMOVE_OV_RB
 	help
 	  LGE remove Over Drive and modify Reverse Brake voltage on Direct mode.
 	default n
+
 source "drivers/platform/msm/spmi/Kconfig"
+
+endmenu
