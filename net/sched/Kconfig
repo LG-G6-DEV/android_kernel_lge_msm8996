@@ -45,7 +45,6 @@ comment "Queueing/Scheduling"
 
 config NET_SCH_CBQ
 	tristate "Class Based Queueing (CBQ)"
-        default y
 	---help---
 	  Say Y here if you want to use the Class-Based Queueing (CBQ) packet
 	  scheduling algorithm. This algorithm classifies the waiting packets
@@ -77,7 +76,6 @@ config NET_SCH_HTB
 
 config NET_SCH_HFSC
 	tristate "Hierarchical Fair Service Curve (HFSC)"
-        default y
 	---help---
 	  Say Y here if you want to use the Hierarchical Fair Service Curve
 	  (HFSC) packet scheduling algorithm.
@@ -110,7 +108,6 @@ config NET_SCH_PRIO
 
 config NET_SCH_MULTIQ
 	tristate "Hardware Multiqueue-aware Multi Band Queuing (MULTIQ)"
-        default y
 	---help---
 	  Say Y here if you want to use an n-band queue packet scheduler
 	  to support devices that have multiple hardware transmit queues.
@@ -120,7 +117,6 @@ config NET_SCH_MULTIQ
 
 config NET_SCH_RED
 	tristate "Random Early Detection (RED)"
-        default y
 	---help---
 	  Say Y here if you want to use the Random Early Detection (RED)
 	  packet scheduling algorithm.
@@ -132,7 +128,6 @@ config NET_SCH_RED
 
 config NET_SCH_SFB
 	tristate "Stochastic Fair Blue (SFB)"
-        default y
 	---help---
 	  Say Y here if you want to use the Stochastic Fair Blue (SFB)
 	  packet scheduling algorithm.
@@ -144,7 +139,6 @@ config NET_SCH_SFB
 
 config NET_SCH_SFQ
 	tristate "Stochastic Fairness Queueing (SFQ)"
-        default y
 	---help---
 	  Say Y here if you want to use the Stochastic Fairness Queueing (SFQ)
 	  packet scheduling algorithm.
@@ -156,7 +150,6 @@ config NET_SCH_SFQ
 
 config NET_SCH_TEQL
 	tristate "True Link Equalizer (TEQL)"
-        default y
 	---help---
 	  Say Y here if you want to use the True Link Equalizer (TLE) packet
 	  scheduling algorithm. This queueing discipline allows the combination
@@ -169,7 +162,6 @@ config NET_SCH_TEQL
 
 config NET_SCH_TBF
 	tristate "Token Bucket Filter (TBF)"
-        default y
 	---help---
 	  Say Y here if you want to use the Token Bucket Filter (TBF) packet
 	  scheduling algorithm.
@@ -181,7 +173,6 @@ config NET_SCH_TBF
 
 config NET_SCH_GRED
 	tristate "Generic Random Early Detection (GRED)"
-        default y
 	---help---
 	  Say Y here if you want to use the Generic Random Early Detection
 	  (GRED) packet scheduling algorithm for some of your network devices
@@ -193,7 +184,6 @@ config NET_SCH_GRED
 
 config NET_SCH_DSMARK
 	tristate "Differentiated Services marker (DSMARK)"
-        default y
 	---help---
 	  Say Y if you want to schedule packets according to the
 	  Differentiated Services architecture proposed in RFC 2475.
@@ -205,7 +195,6 @@ config NET_SCH_DSMARK
 
 config NET_SCH_NETEM
 	tristate "Network emulator (NETEM)"
-        default y
 	---help---
 	  Say Y if you want to emulate network delay, loss, and packet
 	  re-ordering. This is often useful to simulate networks when
@@ -218,7 +207,6 @@ config NET_SCH_NETEM
 
 config NET_SCH_DRR
 	tristate "Deficit Round Robin scheduler (DRR)"
-        default y
 	help
 	  Say Y here if you want to use the Deficit Round Robin (DRR) packet
 	  scheduling algorithm.
@@ -230,7 +218,6 @@ config NET_SCH_DRR
 
 config NET_SCH_MQPRIO
 	tristate "Multi-queue priority scheduler (MQPRIO)"
-        default y
 	help
 	  Say Y here if you want to use the Multi-queue Priority scheduler.
 	  This scheduler allows QOS to be offloaded on NICs that have support
@@ -243,7 +230,6 @@ config NET_SCH_MQPRIO
 
 config NET_SCH_CHOKE
 	tristate "CHOose and Keep responsive flow scheduler (CHOKE)"
-        default y
 	help
 	  Say Y here if you want to use the CHOKe packet scheduler (CHOose
 	  and Keep for responsive flows, CHOose and Kill for unresponsive
@@ -255,7 +241,6 @@ config NET_SCH_CHOKE
 
 config NET_SCH_QFQ
 	tristate "Quick Fair Queueing scheduler (QFQ)"
-        default y
 	help
 	  Say Y here if you want to use the Quick Fair Queueing Scheduler (QFQ)
 	  packet scheduling algorithm.
@@ -326,7 +311,6 @@ config NET_SCH_PIE
 config NET_SCH_INGRESS
 	tristate "Ingress Qdisc"
 	depends on NET_CLS_ACT
-        default y
 	---help---
 	  Say Y here if you want to use classifiers for incoming packets.
 	  If unsure, say Y.
@@ -518,7 +502,6 @@ config NET_EMATCH_STACK
 config NET_EMATCH_CMP
 	tristate "Simple packet data comparison"
 	depends on NET_EMATCH
-        default y
 	---help---
 	  Say Y here if you want to be able to classify packets based on
 	  simple packet data comparisons for 8, 16, and 32bit values.
@@ -529,7 +512,6 @@ config NET_EMATCH_CMP
 config NET_EMATCH_NBYTE
 	tristate "Multi byte comparison"
 	depends on NET_EMATCH
-        default y
 	---help---
 	  Say Y here if you want to be able to classify packets based on
 	  multiple byte comparisons mainly useful for IPv6 address comparisons.
@@ -550,7 +532,6 @@ config NET_EMATCH_U32
 config NET_EMATCH_META
 	tristate "Metadata"
 	depends on NET_EMATCH
-        default y
 	---help---
 	  Say Y here if you want to be able to classify packets based on
 	  metadata such as load average, netfilter attributes, socket
@@ -566,7 +547,6 @@ config NET_EMATCH_TEXT
 	select TEXTSEARCH_KMP
 	select TEXTSEARCH_BM
 	select TEXTSEARCH_FSM
-        default y
 	---help---
 	  Say Y here if you want to be able to classify packets based on
 	  textsearch comparisons.

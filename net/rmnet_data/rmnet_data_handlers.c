@@ -197,8 +197,14 @@ static void rmnet_reset_mac_header(struct sk_buff *skb)
  * Determines whether to pass the skb to the GRO handler napi_gro_receive() or
  * handle normally by passing to netif_receive_skb().
  *
- * Tuning this parameter will trade TCP slow start performance for power.
+ * Warning:
+ * This assumes that only TCP packets can be coalesced by the GRO handler which
+ * is not true in general. We lose the ability to use GRO for cases like UDP
+ * encapsulation protocols.
  *
+ * Return:
+ *      - RMNET_DATA_GRO_RCV_FAIL if packet is sent to netif_receive_skb()
+ *      - RMNET_DATA_GRO_RCV_PASS if packet is sent to napi_gro_receive()
  */
 static int rmnet_check_skb_can_gro(struct sk_buff *skb)
 {
