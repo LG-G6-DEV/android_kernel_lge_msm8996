@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,7 +23,6 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #include <linux/uaccess.h>
-#include <linux/pm.h>
 
 #define DEBUG_K61	0
 #if DEBUG_K61 == 1
@@ -60,7 +59,6 @@ struct k61_can {
 	int cmd_result;
 	int bits_per_word;
 	int reset_delay_msec;
-	s64 time_diff;
 };
 
 struct k61_netdev_privdata {
@@ -98,9 +96,6 @@ struct spi_miso { /* TLV for MISO line */
 #define CMD_CAN_DATA_BUFF_REMOVE	0x88
 #define CMD_CAN_RELEASE_BUFFER          0x89
 #define CMD_CAN_DATA_BUFF_REMOVE_ALL	0x8A
-#define CMD_UPDATE_TIME_INFO		0x9D
-#define CMD_SUSPEND_EVENT		0x9E
-#define CMD_RESUME_EVENT		0x9F
 
 #define IOCTL_RELEASE_CAN_BUFFER	(SIOCDEVPRIVATE + 0)
 #define IOCTL_ENABLE_BUFFERING		(SIOCDEVPRIVATE + 1)
@@ -116,7 +111,7 @@ struct can_fw_resp {
 } __packed;
 
 struct can_write_req {
-	u64 ts;
+	u32 ts;
 	u32 mid;
 	u8 dlc;
 	u8 data[];
@@ -127,7 +122,7 @@ struct can_write_resp {
 } __packed;
 
 struct can_receive_frame {
-	u64 ts;
+	u32 ts;
 	u32 mid;
 	u8 dlc;
 	u8 data[];
@@ -138,10 +133,6 @@ struct can_add_filter_req {
 	u32 mid;
 	u32 mask;
 	u8 type;
-} __packed;
-
-struct can_time_info {
-	u64 time;
 } __packed;
 
 static struct can_bittiming_const k61_bittiming_const = {
@@ -207,7 +198,8 @@ static void k61_receive_frame(struct k61_can *priv_data,
 	struct can_frame *cf;
 	struct sk_buff *skb;
 	struct skb_shared_hwtstamps *skt;
-	ktime_t nsec;
+	struct timeval tv;
+	static int msec;
 	struct net_device *netdev;
 	int i;
 
@@ -224,7 +216,7 @@ static void k61_receive_frame(struct k61_can *priv_data,
 		return;
 	}
 
-	LOGDI("rcv frame %llu %x %d %x %x %x %x %x %x %x %x\n",
+	LOGDI("rcv frame %d %x %d %x %x %x %x %x %x %x %x\n",
 	      frame->ts, frame->mid, frame->dlc, frame->data[0],
 	      frame->data[1], frame->data[2], frame->data[3], frame->data[4],
 	      frame->data[5], frame->data[6], frame->data[7]);
@@ -234,11 +226,13 @@ static void k61_receive_frame(struct k61_can *priv_data,
 	for (i = 0; i < cf->can_dlc; i++)
 		cf->data[i] = frame->data[i];
 
-	nsec = ms_to_ktime(le64_to_cpu(frame->ts) + priv_data->time_diff);
+	msec = le32_to_cpu(frame->ts);
+	tv.tv_sec = msec / 1000;
+	tv.tv_usec = (msec - tv.tv_sec * 1000) * 1000;
 	skt = skb_hwtstamps(skb);
-	skt->hwtstamp = nsec;
+	skt->hwtstamp = timeval_to_ktime(tv);
 	LOGDI("  hwtstamp %lld\n", ktime_to_ms(skt->hwtstamp));
-	skb->tstamp = nsec;
+	skb->tstamp = timeval_to_ktime(tv);
 	netif_rx(skb);
 	netdev->stats.rx_packets++;
 	netdev->stats.rx_bytes += cf->can_dlc;
@@ -248,9 +242,6 @@ static void k61_process_response(struct k61_can *priv_data,
 				 struct spi_miso *resp)
 {
 	int ret = 0;
-	u64 mstime;
-	ktime_t ktime_now;
-
 	LOGDI("<%x %2d [%d]\n", resp->cmd, resp->len, resp->seq);
 	if (resp->cmd == CMD_CAN_RECEIVE_FRAME) {
 		struct can_receive_frame *frame =
@@ -261,12 +252,6 @@ static void k61_process_response(struct k61_can *priv_data,
 
 		dev_info(&priv_data->spidev->dev, "fw %d.%d.%d",
 			 fw_resp->maj, fw_resp->min, fw_resp->ver);
-	} else if (resp->cmd == CMD_UPDATE_TIME_INFO) {
-		struct can_time_info *time_data =
-		     (struct can_time_info *)resp->data;
-		ktime_now = ktime_get_boottime();
-		mstime = ktime_to_ms(ktime_now);
-		priv_data->time_diff = mstime - (le64_to_cpu(time_data->time));
 	}
 
 	if (resp->cmd == priv_data->wait_cmd) {
@@ -387,30 +372,6 @@ static int k61_query_firmware_version(struct k61_can *priv_data)
 				&priv_data->response_completion, 0.001 * HZ);
 		ret = priv_data->cmd_result;
 	}
-
-	return ret;
-}
-
-static int k61_notify_power_events(struct k61_can *priv_data, u8 event_type)
-{
-	char *tx_buf, *rx_buf;
-	int ret;
-	struct spi_mosi *req;
-
-	mutex_lock(&priv_data->spi_lock);
-	tx_buf = priv_data->tx_buf;
-	rx_buf = priv_data->rx_buf;
-	memset(tx_buf, 0, XFER_BUFFER_SIZE);
-	memset(rx_buf, 0, XFER_BUFFER_SIZE);
-	priv_data->xfer_length = XFER_BUFFER_SIZE;
-
-	req = (struct spi_mosi *)tx_buf;
-	req->cmd = event_type;
-	req->len = 0;
-	req->seq = atomic_inc_return(&priv_data->msg_seq);
-
-	ret = k61_do_spi_transaction(priv_data);
-	mutex_unlock(&priv_data->spi_lock);
 
 	return ret;
 }
@@ -851,7 +812,6 @@ static int k61_probe(struct spi_device *spi)
 	int err, retry = 0, query_err = -1;
 	struct k61_can *priv_data;
 	struct device *dev;
-	u32 irq_type;
 
 	dev = &spi->dev;
 	dev_dbg(dev, "k61_probe");
@@ -908,11 +868,8 @@ static int k61_probe(struct spi_device *spi)
 		goto unregister_candev;
 	}
 
-	irq_type = irq_get_trigger_type(spi->irq);
-	if (irq_type == IRQ_TYPE_NONE)
-		irq_type = IRQ_TYPE_EDGE_FALLING;
 	err = request_threaded_irq(spi->irq, NULL, k61_irq,
-				   irq_type | IRQF_ONESHOT,
+				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 				   "k61", priv_data);
 	if (err) {
 		dev_err(dev, "Failed to request irq: %d", err);
@@ -959,46 +916,15 @@ static int k61_remove(struct spi_device *spi)
 
 static const struct of_device_id k61_match_table[] = {
 	{ .compatible = "fsl,k61" },
+	{ .compatible = "nxp,mpc5746c" },
 	{ }
 };
-
-#ifdef CONFIG_PM
-static int k61_suspend(struct device *dev)
-{
-	struct spi_device *spi = to_spi_device(dev);
-	struct k61_can *priv_data = spi_get_drvdata(spi);
-	u8 power_event = CMD_SUSPEND_EVENT;
-
-	k61_notify_power_events(priv_data, power_event);
-	enable_irq_wake(spi->irq);
-	return 0;
-}
-
-static int k61_resume(struct device *dev)
-{
-	struct spi_device *spi = to_spi_device(dev);
-	struct k61_can *priv_data = spi_get_drvdata(spi);
-	u8 power_event = CMD_RESUME_EVENT;
-
-	disable_irq_wake(spi->irq);
-	k61_notify_power_events(priv_data, power_event);
-	return 0;
-}
-
-static const struct dev_pm_ops k61_dev_pm_ops = {
-	.suspend	= k61_suspend,
-	.resume		= k61_resume,
-};
-#endif
 
 static struct spi_driver k61_driver = {
 	.driver = {
 		.name = "k61",
 		.of_match_table = k61_match_table,
 		.owner = THIS_MODULE,
-#ifdef CONFIG_PM
-		.pm = &k61_dev_pm_ops,
-#endif
 	},
 	.probe = k61_probe,
 	.remove = k61_remove,

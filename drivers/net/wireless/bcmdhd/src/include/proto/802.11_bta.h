@@ -1,6 +1,5 @@
 /*
- * Broadcom Dongle Host Driver (DHD), Generic work queue framework
- * Generic interface to handle dhd deferred work events
+ * BT-AMP (BlueTooth Alternate Mac and Phy) 802.11 PAL (Protocol Adaptation Layer)
  *
  * Copyright (C) 1999-2016, Broadcom Corporation
  * 
@@ -25,46 +24,25 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_linux_wq.h 642399 2016-06-08 15:09:47Z $
- */
-#ifndef _dhd_linux_wq_h_
-#define _dhd_linux_wq_h_
-/*
- *	Work event definitions
- */
-enum _wq_event {
-	DHD_WQ_WORK_IF_ADD = 1,
-	DHD_WQ_WORK_IF_DEL,
-	DHD_WQ_WORK_SET_MAC,
-	DHD_WQ_WORK_SET_MCAST_LIST,
-	DHD_WQ_WORK_IPV6_NDO,
-	DHD_WQ_WORK_HANG_MSG,
-	DHD_WQ_WORK_SOC_RAM_DUMP,
-	DHD_WQ_WORK_DHD_LOG_DUMP,
-	DHD_WQ_WORK_DEBUG_UART_DUMP,
+ * $Id: 802.11_bta.h 518342 2014-12-01 23:21:41Z $
+*/
 
-	DHD_MAX_WQ_EVENTS
-};
+#ifndef _802_11_BTA_H_
+#define _802_11_BTA_H_
 
-/*
- *	Work event priority
- */
-#define DHD_WORK_PRIORITY_LOW	0
-#define DHD_WORK_PRIORITY_HIGH	1
+#define BT_SIG_SNAP_MPROT		"\xAA\xAA\x03\x00\x19\x58"
 
-/*
- *	Error definitions
- */
-#define DHD_WQ_STS_OK			 0
-#define DHD_WQ_STS_FAILED		-1	/* General failure */
-#define DHD_WQ_STS_UNINITIALIZED	-2
-#define DHD_WQ_STS_SCHED_FAILED		-3
-#define DHD_WQ_STS_UNKNOWN_EVENT	-4
+/* BT-AMP 802.11 PAL Protocols */
+#define BTA_PROT_L2CAP				1
+#define	BTA_PROT_ACTIVITY_REPORT		2
+#define BTA_PROT_SECURITY			3
+#define BTA_PROT_LINK_SUPERVISION_REQUEST	4
+#define BTA_PROT_LINK_SUPERVISION_REPLY		5
 
-typedef void (*event_handler_t)(void *handle, void *event_data, u8 event);
-
-void *dhd_deferred_work_init(void *dhd);
-void dhd_deferred_work_deinit(void *workq);
-int dhd_deferred_schedule_work(void *workq, void *event_data, u8 event,
-	event_handler_t evt_handler, u8 priority);
-#endif /* _dhd_linux_wq_h_ */
+/* BT-AMP 802.11 PAL AMP_ASSOC Type IDs */
+#define BTA_TYPE_ID_MAC_ADDRESS			1
+#define BTA_TYPE_ID_PREFERRED_CHANNELS		2
+#define BTA_TYPE_ID_CONNECTED_CHANNELS		3
+#define BTA_TYPE_ID_CAPABILITIES		4
+#define BTA_TYPE_ID_VERSION			5
+#endif /* _802_11_bta_h_ */
