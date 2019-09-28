@@ -75,6 +75,7 @@
 #include <linux/sysfs.h>
 #include <linux/miscdevice.h>
 #include <linux/falloc.h>
+#include <linux/android_version.h>
 #include "loop.h"
 
 #include <asm/uaccess.h>
@@ -1881,7 +1882,7 @@ static int __init loop_init(void)
 		nr = max_loop;
 		range = max_loop << part_shift;
 	} else {
-		nr = CONFIG_BLK_DEV_LOOP_MIN_COUNT;
+		nr = (get_android_version() <= 9) ? 8 : 16;
 		range = 1UL << MINORBITS;
 	}
 
