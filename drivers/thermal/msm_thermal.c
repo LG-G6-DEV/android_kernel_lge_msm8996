@@ -10,7 +10,6 @@
  * GNU General Public License for more details.
  *
  */
-
 #define pr_fmt(fmt) "%s:%s " fmt, KBUILD_MODNAME, __func__
 
 #include <linux/kernel.h>
@@ -1036,6 +1035,7 @@ static void update_cpu_freq(int cpu)
 		trace_thermal_post_frequency_mit(cpu,
 			cpufreq_quick_get_max(cpu),
 			cpus[cpu].limited_min_freq);
+		pr_info_ratelimited("[CPU%d] : max freq = %u\n",cpu, cpus[cpu].limited_max_freq);
 		if (ret)
 			pr_err("Unable to update policy for cpu:%d. err:%d\n",
 				cpu, ret);
@@ -2662,7 +2662,7 @@ static int do_vdd_mx(void)
 		}
 	}
 
-	if (dis_cnt == thresh[MSM_VDD_MX_RESTRICTION].thresh_ct) {
+	if ((dis_cnt == thresh[MSM_VDD_MX_RESTRICTION].thresh_ct)) {
 		ret = remove_vdd_mx_restriction();
 		if (ret)
 			pr_err("Failed to remove vdd mx restriction\n");
@@ -3620,19 +3620,32 @@ static int hotplug_notify(enum thermal_trip_type type, int temp, void *data)
 {
 	struct cpu_info *cpu_node = (struct cpu_info *)data;
 
-	pr_info_ratelimited("%s reach temp threshold: %d\n",
-			       cpu_node->sensor_type, temp);
+	pr_info_ratelimited("%s reach temp threshold: %d, cpu_bit:%lu, offline:%d, trip_type:%d\n",cpu_node->sensor_type, temp, BIT(cpu_node->cpu),cpu_node->offline,type);
 
 	if (!(msm_thermal_info.core_control_mask & BIT(cpu_node->cpu)))
+	{
+		pr_err("Non-Masking core. Just Return.\n");
 		return 0;
+	}
+	
 	switch (type) {
 	case THERMAL_TRIP_CONFIGURABLE_HI:
 		if (!(cpu_node->offline))
+		{
+			pr_info_ratelimited("%lu will be offlined.\n",BIT(cpu_node->cpu));
 			cpu_node->offline = 1;
+		}
+		else
+			pr_info_ratelimited("%lu already offlined.\n",BIT(cpu_node->cpu));
 		break;
 	case THERMAL_TRIP_CONFIGURABLE_LOW:
 		if (cpu_node->offline)
+		{
+			pr_info_ratelimited("%lu will be onlined.\n",BIT(cpu_node->cpu));
 			cpu_node->offline = 0;
+		}
+		else
+			pr_info_ratelimited("%lu already onlined.\n",BIT(cpu_node->cpu));
 		break;
 	default:
 		break;
@@ -3799,8 +3812,11 @@ static __ref int do_freq_mitigation(void *data)
 
 			cpus[cpu].limited_max_freq = max_freq_req;
 			cpus[cpu].limited_min_freq = min_freq_req;
-			if (!SYNC_CORE(cpu))
+			if (!SYNC_CORE(cpu)) {
+				get_online_cpus();
 				update_cpu_freq(cpu);
+				put_online_cpus();
+			}
 reset_threshold:
 			if (!SYNC_CORE(cpu) &&
 				devices && devices->cpufreq_dev[cpu]) {
@@ -3834,7 +3850,9 @@ reset_threshold:
 				cpus[cpu].freq_thresh_clear = false;
 			}
 		}
+		get_online_cpus();
 		update_cluster_freq();
+		put_online_cpus();
 	}
 	return ret;
 }
@@ -4880,6 +4898,7 @@ static void interrupt_mode_init(void)
 		return;
 
 	if (polling_enabled) {
+		pr_info_ratelimited("interrupt mode init !\n");
 		polling_enabled = 0;
 		create_sensor_zone_id_map();
 		disable_msm_thermal();
@@ -6348,7 +6367,7 @@ static int fetch_cpu_mitigaiton_info(struct msm_thermal_data *data,
 			goto fetch_mitig_exit;
 		}
 		strlcpy((char *) cpus[_cpu].sensor_type, sensor_name,
-			strlen((char *) cpus[_cpu].sensor_type));
+			strlen(sensor_name) + 1);
 		create_alias_name(_cpu, limits, pdev);
 	}
 
