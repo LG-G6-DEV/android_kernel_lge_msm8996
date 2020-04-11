@@ -20,7 +20,7 @@ config ZRAM_LZ4_COMPRESS
 	depends on ZRAM
 	select LZ4_COMPRESS
 	select LZ4_DECOMPRESS
-	default n
+	default y
 	help
 	  This option enables LZ4 compression algorithm support. Compression
 	  algorithm can be changed using `comp_algorithm' device attribute.
