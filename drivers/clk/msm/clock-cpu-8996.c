@@ -1308,9 +1308,9 @@ static void cpu_clock_8996_pro_fixup(void)
 
 static int perfclspeedbin;
 
-unsigned long pwrcl_early_boot_rate = 883200000;
-unsigned long perfcl_early_boot_rate = 883200000;
-unsigned long cbf_early_boot_rate = 614400000;
+unsigned long pwrcl_early_boot_rate = 1056000000;
+unsigned long perfcl_early_boot_rate = 1056000000;
+unsigned long cbf_early_boot_rate = 844800000;
 unsigned long alt_pll_early_boot_rate = 307200000;
 
 #ifdef CONFIG_LGE_PM
