@@ -663,6 +663,7 @@ static void LZ4HC_setExternalDict(
 	/* match referencing will resume from there */
 	ctxPtr->nextToUpdate = ctxPtr->dictLimit;
 }
+EXPORT_SYMBOL(LZ4HC_setExternalDict);
 
 static int LZ4_compressHC_continue_generic(
 	LZ4_streamHC_t *LZ4_streamHCPtr,
@@ -785,7 +786,7 @@ int lz4hc_compress(const unsigned char *src, size_t src_len,
 	else
 		return 0;
 }
-EXPORT_SYMBOL(lz4hc_compress);
+EXPORT_SYMBOL(LZ4_saveDictHC);
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("LZ4 HC compressor");
