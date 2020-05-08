@@ -1108,7 +1108,6 @@ static ssize_t disksize_store(struct device *dev,
 		return -EINVAL;
 #else
 	disksize = (u64)SZ_1G * CONFIG_ZRAM_SIZE_OVERRIDE;
-	pr_info("Overriding zram size to %li", disksize);
 #endif
 
 	disksize = PAGE_ALIGN(disksize);
