@@ -108,6 +108,8 @@
 #define ADRENO_64BIT BIT(9)
 /* The GPU supports retention for cpz registers */
 #define ADRENO_CPZ_RETENTION BIT(10)
+/* Adreno 5XX "simple" GPMU */
+#define ADRENO_A5XX_GPMU BIT(29)
 
 /*
  * Adreno GPU quirks - control bits for various workarounds
