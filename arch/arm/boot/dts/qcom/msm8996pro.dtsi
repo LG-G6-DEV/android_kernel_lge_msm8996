@@ -1333,7 +1333,7 @@
 &soc {
 	qcom,msm-thermal {
 		qcom,limit-temp = <70>;
-		qcom,core-limit-temp = <80>;
+		qcom,core-limit-temp = <90>;
 		qcom,freq-mitigation-value = <768000>;
 		msm_thermal_freq: qcom,vdd-apps-rstr {
 			qcom,max-freq-level = <1209600>;
