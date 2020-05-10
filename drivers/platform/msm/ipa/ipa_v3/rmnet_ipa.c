@@ -710,7 +710,8 @@ static int ipa3_wwan_add_ul_flt_rule_to_ipa(void)
 		retval = -EFAULT;
 	}
 
-	req->install_status = QMI_RESULT_SUCCESS_V01;
+	req->install_status = (enum ipa_qmi_result_type_v01)
+							QMI_RESULT_SUCCESS_V01;
 	req->rule_id_valid = 1;
 	req->rule_id_len = rmnet_ipa3_ctx->num_q6_rules;
 	for (i = 0; i < rmnet_ipa3_ctx->num_q6_rules; i++) {
@@ -1154,7 +1155,11 @@ out:
 
 static void ipa3_wwan_tx_timeout(struct net_device *dev)
 {
-	IPAWANERR("[%s] ipa3_wwan_tx_timeout(), data stall in UL\n", dev->name);
+	struct ipa3_wwan_private *wwan_ptr = netdev_priv(dev);
+
+	if (atomic_read(&wwan_ptr->outstanding_pkts) != 0)
+		IPAWANERR("[%s] data stall in UL, %d outstanding\n",
+			dev->name, atomic_read(&wwan_ptr->outstanding_pkts));
 }
 
 /**

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -37,8 +37,17 @@ static int msm_hdmi_edid_ctl_info(struct snd_kcontrol *kcontrol,
 	int rc;
 
 	codec_data = snd_soc_codec_get_drvdata(codec);
-	rc = codec_data->hdmi_ops.get_audio_edid_blk(codec_data->hdmi_core_pdev,
-						     &edid_blk);
+
+	if (!codec_data->hdmi_ops.get_audio_edid_blk) {
+		pr_debug("%s: get_audio_edid_blk() is NULL\n", __func__);
+		uinfo->type = SNDRV_CTL_ELEM_TYPE_BYTES;
+		uinfo->count = 0;
+		return 0;
+	}
+
+	rc = codec_data->hdmi_ops.get_audio_edid_blk(
+			codec_data->hdmi_core_pdev,
+			&edid_blk);
 	if (!IS_ERR_VALUE(rc)) {
 		uinfo->type = SNDRV_CTL_ELEM_TYPE_BYTES;
 		uinfo->count = edid_blk.audio_data_blk_size +
@@ -60,7 +69,17 @@ static int msm_hdmi_edid_get(struct snd_kcontrol *kcontrol,
 			codec_data->hdmi_core_pdev, &edid_blk);
 
 	if (!IS_ERR_VALUE(rc)) {
-		memcpy(ucontrol->value.bytes.data, edid_blk.audio_data_blk,
+		if (sizeof(ucontrol->value.bytes.data) <
+			  (edid_blk.audio_data_blk_size +
+			   edid_blk.spk_alloc_data_blk_size)) {
+			dev_err(codec->dev,
+				"%s: Not enough memory to copy EDID data\n",
+				__func__);
+			return -ENOMEM;
+		}
+
+		memcpy(ucontrol->value.bytes.data,
+		       edid_blk.audio_data_blk,
 		       edid_blk.audio_data_blk_size);
 		memcpy((ucontrol->value.bytes.data +
 		       edid_blk.audio_data_blk_size),

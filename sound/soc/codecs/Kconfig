@@ -705,6 +705,13 @@ config SND_SOC_WCD_MBHC
 	tristate
 	default y if (SND_SOC_MSM8909_WCD=y || SND_SOC_MSM8X16_WCD=y || SND_SOC_WCD9335=y) && SND_SOC_MDM9650!=y
 
+config SND_SOC_WCD_DSP_MGR
+	tristate
+
+config SND_SOC_WCD_SPI
+	depends on SPI
+	tristate
+
 config SND_SOC_WL1273
 	tristate
 
@@ -921,4 +928,8 @@ config SND_SOC_MSM_HDMI_DBA_CODEC_RX
 config LGE_ENABLE_HDSET_FACTORY
 	bool "disable detect_extn_cable feature on factory mode"
 	default n
+
+config SOUND_CONTROL
+	bool "Sound control for wcd9335"
+
 endmenu
