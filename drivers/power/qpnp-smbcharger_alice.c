@@ -5635,18 +5635,17 @@ static int smbchg_change_usb_supply_type(struct smbchg_chip *chip,
 		current_limit_ma = DEFAULT_SDP_MA;
 	else if (type == POWER_SUPPLY_TYPE_USB_CDP)
 		current_limit_ma = DEFAULT_CDP_MA;
-	else if (type == POWER_SUPPLY_TYPE_USB_HVDCP) {
 #ifdef CONFIG_LGE_PM_CHARGING_CONTROLLER
-#ifdef CONFIG_LGE_PM_MAXIM_EVP_CONTROL
+	else if (type == POWER_SUPPLY_TYPE_USB_HVDCP) {
 		if (chip->is_evp_ta)
 			current_limit_ma = smbchg_default_dcp_icl_ma;
 		else
-#endif
 			current_limit_ma = smbchg_default_hvdcp_icl_ma;
+	}
 #else
+	else if (type == POWER_SUPPLY_TYPE_USB_HVDCP)
 		current_limit_ma = smbchg_default_hvdcp_icl_ma;
 #endif
-	}
 	else if (type == POWER_SUPPLY_TYPE_USB_HVDCP_3)
 		current_limit_ma = smbchg_default_hvdcp3_icl_ma;
 	else
@@ -5666,7 +5665,7 @@ static int smbchg_change_usb_supply_type(struct smbchg_chip *chip,
 	}
 #endif
 
-#if CONFIG_LGE_PM_FACTORY_CABLE
+#ifdef CONFIG_LGE_PM_FACTORY_CABLE
 #ifdef CONFIG_LGE_USB_TYPE_C
 	if (!chip->dp_alt_mode && lge_is_factory_cable()) {
 #else
