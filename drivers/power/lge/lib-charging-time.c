@@ -32,10 +32,6 @@
 #define pr_fmt(fmt) "CHARGING-TIME: %s: " fmt, __func__
 #define pr_chgtime(reason, fmt, ...)			\
 do {							\
-	if (debug_mask & (reason))			\
-		pr_info(fmt, ##__VA_ARGS__);		\
-	else						\
-		pr_debug(fmt, ##__VA_ARGS__);		\
 } while (0)
 
 #define CHARGING_TIME_COMPATIBLE	"lge,charging-time"

@@ -4021,7 +4021,6 @@ static int fg_get_battery_cycle(struct fg_chip *chip)
 	chip->battery_cycle = cycle_bucket_sum/8;
 
 	pr_info("Get battery cycle = %d\n", chip->battery_cycle);
-
 	return chip->battery_cycle;
 }
 #endif

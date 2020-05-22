@@ -233,6 +233,9 @@ struct fg_dt_props {
 	bool	force_load_profile;
 	bool	hold_soc_while_full;
 	bool	auto_recharge_soc;
+	bool	use_esr_sw;
+	bool	disable_esr_pull_dn;
+	bool	disable_fg_twm;
 	int	cutoff_volt_mv;
 	int	empty_volt_mv;
 	int	vbatt_low_thr_mv;
@@ -265,6 +268,8 @@ struct fg_dt_props {
 	int	slope_limit_temp;
 	int	esr_pulse_thresh_ma;
 	int	esr_meas_curr_ma;
+	int	ki_coeff_full_soc_dischg;
+	int	sync_sleep_threshold_ma;
 	int	jeita_thresholds[NUM_JEITA_LEVELS];
 	int	ki_coeff_soc[KI_COEFF_SOC_LEVELS];
 	int	ki_coeff_med_dischg[KI_COEFF_SOC_LEVELS];
@@ -374,6 +379,7 @@ struct fg_chip {
 	struct fg_batt_props	bp;
 	struct fg_cyc_ctr_data	cyc_ctr;
 	struct notifier_block	nb;
+	struct notifier_block	twm_nb;
 	struct fg_cap_learning  cl;
 	struct mutex		bus_lock;
 	struct mutex		sram_rw_lock;
@@ -387,7 +393,6 @@ struct fg_chip {
 	int			batt_id_ohms;
 	int			ki_coeff_full_soc;
 	int			charge_status;
-	int			prev_charge_status;
 	int			charge_done;
 	int			charge_type;
 	int			last_soc;
@@ -410,6 +415,8 @@ struct fg_chip {
 	bool			esr_flt_cold_temp_en;
 	bool			slope_limit_en;
 	bool			use_ima_single_mode;
+	bool			usb_present;
+	bool			twm_state;
 	struct completion	soc_update;
 	struct completion	soc_ready;
 	struct delayed_work	profile_load_work;
