@@ -781,7 +781,7 @@ static void sdhci_adma_table_post(struct sdhci_host *host,
 	char *buffer;
 	unsigned long flags;
 	bool has_unaligned = false;
-	u32 command = SDHCI_GET_CMD(sdhci_readw(host, SDHCI_COMMAND));
+	//u32 command = SDHCI_GET_CMD(sdhci_readw(host, SDHCI_COMMAND));
 
 	//trace_mmc_adma_table_post(command, data->sg_len);
 
