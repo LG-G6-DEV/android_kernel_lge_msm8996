@@ -1082,7 +1082,7 @@ void lcd_watch_font_crc_check_after_panel_reset(void)
 
 void lcd_watch_deside_status(struct  msm_fb_data_type *mfd, unsigned int cur_mode, unsigned int next_mode)
 {
-
+#if !defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
 	pr_info("[Watch] Current mode : %d, Next Mode : %d, User Setting %s\n", cur_mode, next_mode, mfd->watch.hw_clock_user_state ? "On" : "Off");
 	mfd->ready_to_u2 = false;
 	/* Next is U3 Case */
@@ -1132,4 +1132,5 @@ void lcd_watch_deside_status(struct  msm_fb_data_type *mfd, unsigned int cur_mod
 		mfd->watch.wdata.u2_scr_fad.vsposfix = 0;
 		oem_mdss_watch_reg_write(mfd, U2_SCR_FAD);
 	}
+#endif
 }
