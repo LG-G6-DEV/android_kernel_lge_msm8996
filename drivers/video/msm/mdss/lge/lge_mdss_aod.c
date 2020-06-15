@@ -191,7 +191,7 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 		}
 #endif
 #else
-#if defined(CONFIG_LGE_DISPLAY_AOD_WITH_MIPI)
+#if defined(CONFIG_LGE_DISPLAY_AOD_WITH_MIPI) && !defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
 			/* U0_BLANK -> U3_UNBLANK, When font download is Fail */
 			if (blank_mode == FB_BLANK_UNBLANK && aod_node == 1 && !mfd->watch.current_font_type) {
 				cmd_status = ON_CMD;
@@ -200,12 +200,21 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 				break;
 			}
 #endif
+#if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
+            /* U0_BLANK -> U2_UNBLANK */
+			if (blank_mode == FB_BLANK_UNBLANK && aod_node == 2) {
+				cmd_status = ON_CMD;
+				next_mode = AOD_PANEL_MODE_U2_UNBLANK;
+				labibb_ctrl = true;
+			}
+#else
 			/* U0_BLANK -> U2_UNBLANK*/
 			if (blank_mode == FB_BLANK_UNBLANK && aod_node == 1 && aod_keep_u2 == AOD_KEEP_U2) {
 				cmd_status = ON_AND_AOD;
 				next_mode = AOD_PANEL_MODE_U2_UNBLANK;
 				labibb_ctrl = true;
 			}
+#endif
 			/* U0_BLANK -> U3_UNBLANK */
 			else if ((blank_mode == FB_BLANK_UNBLANK && aod_node == 0) ||
 				 (blank_mode == FB_BLANK_UNBLANK && aod_node == 1 && aod_keep_u2 == AOD_MOVE_TO_U3)) {
@@ -231,12 +240,27 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 #endif
 			next_mode = AOD_PANEL_MODE_U0_BLANK;
 		}
-#if defined(CONFIG_LGE_DISPLAY_AOD_WITH_MIPI)
+#if defined(CONFIG_LGE_DISPLAY_AOD_WITH_MIPI) && !defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
 		/* U2_UNBLANK -> U0_BLANK, When font download is Fail */
 		else if (blank_mode == FB_BLANK_POWERDOWN && aod_node == 1 && !mfd->watch.current_font_type) {
 			cmd_status = OFF_CMD;
 			next_mode = AOD_PANEL_MODE_U0_BLANK;
 			labibb_ctrl = true;
+		}
+#endif
+#if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
+        /* U2_UNBLANK -> U3_UNBLANK */
+        else if ((blank_mode == FB_BLANK_UNBLANK && aod_node == 2 && aod_keep_u2 != AOD_KEEP_U2) ||
+			(blank_mode == FB_BLANK_UNBLANK && aod_node == 0 && aod_keep_u2 == AOD_MOVE_TO_U3)) {
+			cmd_status = AOD_CMD_DISABLE;
+			next_mode = AOD_PANEL_MODE_U3_UNBLANK;
+			labibb_ctrl = false;
+		}
+        /* U2_UNBLANK -> U0_BLANK */
+		else if (blank_mode == FB_BLANK_POWERDOWN && aod_node == 2) {
+			cmd_status = OFF_CMD;
+			next_mode = AOD_PANEL_MODE_U0_BLANK;
+			labibb_ctrl = false;
 		}
 #endif
 		/* U2_UNBLANK -> U2_BLANK */
@@ -319,6 +343,14 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 			cmd_status = OFF_CMD;
 			next_mode = AOD_PANEL_MODE_U0_BLANK;
 			labibb_ctrl = true;
+		}
+#endif
+#if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
+        /* U3_UNBLANK -> U2_UNBLANK */
+		else if (blank_mode == FB_BLANK_UNBLANK && aod_node == 2) {
+			cmd_status = CMD_SKIP;
+			next_mode = AOD_PANEL_MODE_U2_UNBLANK;
+			labibb_ctrl = false;
 		}
 #endif
 		/* U3_UNBLANK -> U2_BLANK */

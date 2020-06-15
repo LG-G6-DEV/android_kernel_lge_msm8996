@@ -97,6 +97,13 @@ config LGE_DISPLAY_AOD_SUPPORTED
 	---help---
 	Feature for AOD (Always on Display) scenario.
 
+config LGE_DISPLAY_AOD_ON_CUSTOM
+    depends on LGE_DISPLAY_AOD_WITH_MIPI
+    bool "Enable AOD function on custom rom"
+	default n
+	---help---
+	Feature for AOD (Always on Display) scenario on custom rom.
+
 config LGE_DISPLAY_MARQUEE_SUPPORTED
 	bool "Enable MARQUEE function"
 	default n

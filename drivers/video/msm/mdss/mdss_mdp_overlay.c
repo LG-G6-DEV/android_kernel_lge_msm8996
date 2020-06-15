@@ -2083,8 +2083,11 @@ set_roi:
 			(mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK) ||
 			(mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK) ||
 			is_black_frame) {
-#elif defined (CONFIG_LGE_DISPLAY_AOD_WITH_MIPI)
+#elif defined (CONFIG_LGE_DISPLAY_AOD_WITH_MIPI) && !defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
 		if ((mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK) ||
+			(mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK && mfd->panel_info->aod_node_from_user != 2) ) {
+#elif defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
+        if ((mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK) ||
 			(mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK) ) {
 #else
 		if ((mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK) ||
@@ -2102,7 +2105,7 @@ set_roi:
 					ctl->mixer_right->height-SKIP_ROI_SIZE};
 			}
 		}
-#if defined(CONFIG_LGE_DISPLAY_AOD_WITH_MIPI)
+#if defined(CONFIG_LGE_DISPLAY_AOD_WITH_MIPI) && !defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
 		else if (mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U3_UNBLANK && is_black_frame && mfd->ready_to_u2) {
 			if (mfd->watch.current_font_type) {
 				if (mfd->need_to_init_watch)
