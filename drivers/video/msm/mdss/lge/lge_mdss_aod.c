@@ -207,6 +207,12 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 				next_mode = AOD_PANEL_MODE_U2_UNBLANK;
 				labibb_ctrl = true;
 			}
+            /* U0_BLANK -> U2_UNBLANK */
+			else if (blank_mode == 1 && aod_node == 2) {
+				cmd_status = ON_CMD;
+				next_mode = AOD_PANEL_MODE_U2_UNBLANK;
+				labibb_ctrl = true;
+			}
 #else
 			/* U0_BLANK -> U2_UNBLANK*/
 			if (blank_mode == FB_BLANK_UNBLANK && aod_node == 1 && aod_keep_u2 == AOD_KEEP_U2) {
@@ -348,6 +354,12 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 #if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
         /* U3_UNBLANK -> U2_UNBLANK */
 		else if (blank_mode == FB_BLANK_UNBLANK && aod_node == 2) {
+			cmd_status = CMD_SKIP;
+			next_mode = AOD_PANEL_MODE_U2_UNBLANK;
+			labibb_ctrl = false;
+		}
+        /* U3_UNBLANK -> U2_UNBLANK */
+		else if (blank_mode == 1 && aod_node == 2) {
 			cmd_status = CMD_SKIP;
 			next_mode = AOD_PANEL_MODE_U2_UNBLANK;
 			labibb_ctrl = false;
