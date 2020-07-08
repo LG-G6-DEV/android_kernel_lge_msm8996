@@ -268,6 +268,12 @@ int oem_mdss_aod_decide_status(struct msm_fb_data_type *mfd, int blank_mode)
 			next_mode = AOD_PANEL_MODE_U0_BLANK;
 			labibb_ctrl = false;
 		}
+        /* U2_UNBLANK -> U2_UNBLANK */
+		else if ((blank_mode == 1 || blank_mode == 2) && aod_node == 2) {
+			cmd_status = CMD_SKIP;
+			next_mode = AOD_PANEL_MODE_U2_UNBLANK;
+			labibb_ctrl = false;
+		}
 #endif
 		/* U2_UNBLANK -> U2_BLANK */
 		else if (blank_mode == FB_BLANK_POWERDOWN && aod_node == 1) {
