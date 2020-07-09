@@ -1063,23 +1063,18 @@ int sw49408_tc_driving(struct device *dev, int mode)
 
 	d->driving_mode = mode;
 	switch (mode) {
-#if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
-	case LCD_MODE_U0:
-		ctrl = 0x185;
+    case LCD_MODE_U0:
+		ctrl = 0x01;
 		break;
-
+#if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
 	case LCD_MODE_U2_UNBLANK:
 		ctrl = 0x185;
 		break;
 #else
-    case LCD_MODE_U0:
-		ctrl = 0x01;
-		break;
 	case LCD_MODE_U2_UNBLANK:
 		ctrl = 0x101;
 		break;
 #endif
-
 	case LCD_MODE_U2:
 		ctrl = 0x101;
 		break;
