@@ -249,7 +249,11 @@ static int sw49408_fb_notifier_callback(struct notifier_block *self,
 	if (ev && ev->data && event == FB_EVENT_BLANK) {
 		int *blank = (int *)ev->data;
 
+#if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
+        if (*blank == FB_BLANK_UNBLANK || *blank == FB_BLANK_NORMAL || *blank == FB_BLANK_VSYNC_SUSPEND)
+#else
 		if (*blank == FB_BLANK_UNBLANK)
+#endif
 			TOUCH_I("FB_UNBLANK\n");
 		else if (*blank == FB_BLANK_POWERDOWN)
 			TOUCH_I("FB_BLANK\n");
@@ -1569,7 +1573,7 @@ static void sw49408_fb_notify_work_func(struct work_struct *fb_notify_work)
 				struct sw49408_data, fb_notify_work);
 	int ret = 0;
 
-	if (d->lcd_mode == LCD_MODE_U3)
+	if (d->lcd_mode == LCD_MODE_U3 || d->lcd_mode == LCD_MODE_U2_UNBLANK)
 		ret = FB_RESUME;
 	else
 		ret = FB_SUSPEND;
