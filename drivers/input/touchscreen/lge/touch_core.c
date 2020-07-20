@@ -502,7 +502,11 @@ static int touch_fb_notifier_callback(struct notifier_block *self,
 	if (ev && ev->data && event == FB_EVENT_BLANK) {
 		int *blank = (int *)ev->data;
 
+#if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
+        if (*blank == FB_BLANK_UNBLANK || *blank == FB_BLANK_NORMAL || *blank == FB_BLANK_VSYNC_SUSPEND)
+#else
 		if (*blank == FB_BLANK_UNBLANK)
+#endif
 			touch_resume(ts->dev);
 		else if (*blank == FB_BLANK_POWERDOWN)
 			touch_suspend(ts->dev);

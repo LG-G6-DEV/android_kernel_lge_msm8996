@@ -240,7 +240,11 @@ static int sw49407_fb_notifier_callback(struct notifier_block *self,
 	if (ev && ev->data && event == FB_EVENT_BLANK) {
 		int *blank = (int *)ev->data;
 
+#if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
+        if (*blank == FB_BLANK_UNBLANK || *blank == FB_BLANK_NORMAL || *blank == FB_BLANK_VSYNC_SUSPEND)
+#else
 		if (*blank == FB_BLANK_UNBLANK)
+#endif
 			TOUCH_I("FB_UNBLANK\n");
 		else if (*blank == FB_BLANK_POWERDOWN)
 			TOUCH_I("FB_BLANK\n");
@@ -944,9 +948,15 @@ int sw49407_tc_driving(struct device *dev, int mode)
 		ctrl = 0x01;
 		break;
 
+#if defined(CONFIG_LGE_DISPLAY_AOD_ON_CUSTOM)
+	case LCD_MODE_U2_UNBLANK:
+		ctrl = 0x185;
+		break;
+#else
 	case LCD_MODE_U2_UNBLANK:
 		ctrl = 0x301;
 		break;
+#endif
 
 	case LCD_MODE_U2:
 		ctrl = 0x101;
@@ -1548,7 +1558,7 @@ static int sw49407_notify(struct device *dev, ulong event, void *data)
 		sw49407_lcd_mode(dev, *(u32 *)data);
 		ret = sw49407_check_mode(dev);
 		if (ret == 0){
-        		if (d->lcd_mode == LCD_MODE_U3)
+        		if (d->lcd_mode == LCD_MODE_U3 || d->lcd_mode == LCD_MODE_U2_UNBLANK)
             			atomic_set(&ts->state.fb, FB_RESUME);
            		else
             			atomic_set(&ts->state.fb, FB_SUSPEND);
