@@ -48,7 +48,7 @@ struct lge_battery_id_info {
 static enum power_supply_property lge_battery_id_battery_props[] = {
 	POWER_SUPPLY_PROP_BATTERY_ID,
 };
-#if defined (CONFIG_MACH_MSM8996_ELSA) || defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_ANNA)
+#if defined (CONFIG_MACH_MSM8996_ELSA) || defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_ANNA) || defined (CONFIG_MACH_MSM8996_FALCON)
 struct battery_id_type battery_id_list[] = {
 	{
 		.battery_id = BATT_ID_RA4301_VC0,
@@ -154,11 +154,7 @@ bool lge_battery_check()
 		usb_online = 0;
 	}
 
-#ifdef CONFIG_LGE_PM_FACTORY_CABLE
 	if (lge_is_factory_cable() && usb_online)
-#else
-	if (usb_online)
-#endif
 		return true;
 	else
 		return is_battery_valid(battery_id);

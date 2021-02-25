@@ -230,7 +230,8 @@ static void step_charging_check_work(struct work_struct *work)
 	union power_supply_propval pval = {0, };
 	int vbat_mv, prev_fcc_ma;
 #ifdef CONFIG_LGE_USB_TYPE_C
-	int c_type, c_mA, rc;
+	int c_type, rc;
+	int c_mA = 0;
 
 	if (!the_controller->ctype_psy)
 		the_controller->ctype_psy = power_supply_get_by_name("usb_pd");
@@ -692,12 +693,10 @@ static void usb_current_max_check_work(struct work_struct *work)
 	the_controller->usb_psy->get_property(the_controller->usb_psy,
 			POWER_SUPPLY_PROP_APSD_RERUN_NEED, &pval);
 
-#ifdef CONFIG_LGE_PM_FACTORY_CABLE
 	if (lge_is_factory_cable() || pval.intval == 1) {
 		pr_err("%s : skip current_max_check work\n", __func__);
 		return;
 	}
-#endif
 
 	the_controller->usb_psy->get_property(the_controller->usb_psy,
 			POWER_SUPPLY_PROP_REAL_TYPE, &pval);

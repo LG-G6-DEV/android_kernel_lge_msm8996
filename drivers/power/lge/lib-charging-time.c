@@ -32,6 +32,10 @@
 #define pr_fmt(fmt) "CHARGING-TIME: %s: " fmt, __func__
 #define pr_chgtime(reason, fmt, ...)			\
 do {							\
+	if (debug_mask & (reason))			\
+		pr_info(fmt, ##__VA_ARGS__);		\
+	else						\
+		pr_debug(fmt, ##__VA_ARGS__);		\
 } while (0)
 
 #define CHARGING_TIME_COMPATIBLE	"lge,charging-time"
@@ -91,7 +95,7 @@ static struct charging_time {
 
 	/* for debugging */
 	int		evaluate_native[100];
-	int		evaluate_reporting[100];
+	int		evaluate_reporting[100+1];
 	int		evaluate_emf[100];	// should be divided by smoothing_base
 } time_me = {
 /* For EMF : weight for the latest delta */

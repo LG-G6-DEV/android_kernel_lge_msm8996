@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -295,6 +295,7 @@ struct dwc3_msm {
 	u32			bus_perf_client;
 	struct msm_bus_scale_pdata	*bus_scale_table;
 	struct power_supply	usb_psy;
+	enum power_supply_type	usb_supply_type;
 #ifdef CONFIG_LGE_USB_TYPE_C
 	struct power_supply	*typec_psy;
 #endif
@@ -401,7 +402,7 @@ struct dwc3_msm {
 static void dwc3_pwr_event_handler(struct dwc3_msm *mdwc);
 static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned mA);
 
-#if defined (CONFIG_LGE_TOUCH_CORE)
+#if defined (CONFIG_LGE_TOUCH_CORE) || defined (CONFIG_LGE_TOUCH_CORE_NOS)
 void touch_notify_connect(int value);
 #endif
 
@@ -758,12 +759,10 @@ static void dwc3_cable_adc_work(struct work_struct *w)
 	if(lge_pm_get_cable_type() == CABLE_910K &&
 		(boot_mode == LGE_BOOT_MODE_QEM_56K ||
 		boot_mode == LGE_BOOT_MODE_QEM_130K) &&
-		(lge_smem_cable_type() != 11 || !firstboot_check)
-#ifdef CONFIG_LGE_USB_G_LAF
-		&& !lge_get_laf_mode()
-#endif
+		(lge_smem_cable_type() != 11 || !firstboot_check) &&
+		!lge_get_laf_mode()
 #if defined(CONFIG_SLIMPORT_COMMON) || defined(CONFIG_LGE_DP_ANX7688)
-		&& !slimport_is_connected()
+		&&!slimport_is_connected()
 #endif
 		)
 	{
@@ -2674,6 +2673,13 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 	}
 #endif
+
+	if (!mdwc->in_host_mode && (mdwc->vbus_active && !mdwc->suspend)) {
+		dev_dbg(mdwc->dev,
+			"Received wakeup event before the core suspend\n");
+		return -EBUSY;
+	}
+
 	ret = dwc3_msm_prepare_suspend(mdwc);
 	if (ret)
 		return ret;
@@ -3253,7 +3259,8 @@ static int dwc3_msm_power_get_property_usb(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 #ifdef CONFIG_LGE_PM
-		if (psy->type == POWER_SUPPLY_TYPE_UNKNOWN)
+		if ((psy->type == POWER_SUPPLY_TYPE_UNKNOWN)||
+			(psy->type == POWER_SUPPLY_TYPE_USB_HVDCP_3))
 			val->intval = POWER_SUPPLY_TYPE_USB_PD;
 		else
 			val->intval = psy->type;
@@ -3513,6 +3520,10 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 			queue_delayed_work(mdwc->dwc3_resume_wq,
 					   &mdwc->resume_work, 12);
 #endif
+#endif
+
+#if defined (CONFIG_LGE_TOUCH_CORE)
+		touch_notify_connect(mdwc->chg_type);
 #endif
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
@@ -4926,6 +4937,7 @@ static int dwc3_otg_start_peripheral(struct dwc3_msm *mdwc, int on)
 static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned mA)
 {
 	enum power_supply_type power_supply_type;
+	union power_supply_propval propval;
 #ifdef CONFIG_LGE_PM_CABLE_DETECTION
 	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
 #endif
@@ -4960,7 +4972,9 @@ static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned mA)
 	else
 		power_supply_type = POWER_SUPPLY_TYPE_UNKNOWN;
 
-	power_supply_set_supply_type(&mdwc->usb_psy, power_supply_type);
+	propval.intval = power_supply_type;
+	mdwc->usb_psy.set_property(&mdwc->usb_psy,
+			POWER_SUPPLY_PROP_REAL_TYPE, &propval);
 
 skip_psy_type:
 
@@ -5002,9 +5016,6 @@ skip_psy_type:
 		mA -= 10;
 #endif
 
-#if defined (CONFIG_LGE_TOUCH_CORE)
-	touch_notify_connect(mdwc->chg_type);
-#endif
 	if (mdwc->max_power == mA)
 		return 0;
 
@@ -5557,7 +5568,7 @@ static void dwc3_msm_otg_sm_work(struct work_struct *w)
 						mdwc->in_host_mode)
 				pm_wakeup_event(mdwc->dev,
 						DWC3_WAKEUP_SRC_TIMEOUT);
-#if defined (CONFIG_LGE_TOUCH_CORE)
+#if defined (CONFIG_LGE_TOUCH_CORE) || defined (CONFIG_LGE_TOUCH_CORE_NOS)
 			touch_notify_connect(6);
 #endif
 		}

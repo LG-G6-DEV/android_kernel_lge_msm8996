@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -81,8 +81,6 @@
 #include <soc/qcom/lge/lge_monitor_thermal.h>
 #endif
 
-#include <linux/fastchg.h>
-
 /* Mask/Bit helpers */
 #define _SMB_MASK(BITS, POS) \
 	((unsigned char)(((1 << (BITS)) - 1) << (POS)))
@@ -141,7 +139,11 @@ struct smbchg_version_tables {
 };
 
 #ifdef CONFIG_LGE_PM_CYCLE_BASED_CHG_VOLTAGE
+#ifdef CONFIG_MACH_MSM8996_LUCYE_KR_F
+#define MAX_CYCLE_STEP	6
+#else
 #define MAX_CYCLE_STEP	4
+#endif
 #define DECCUR_FLOAT_VOLTAGE	4000
 #endif
 
@@ -430,6 +432,7 @@ struct smbchg_chip {
 	int				hvdcp_uv_count;
 	bool				hvdcp_uv_recovery;
 	struct delayed_work		hvdcp_recovery_work;
+	int				fake_hvdcp_mode;
 #endif
 #ifdef CONFIG_LGE_PM_WATERPROOF_PROTECTION
 	bool				input_blocked;
@@ -665,7 +668,6 @@ enum incompatible_hvdcp_detect_step {
 	SECOND_APSD_DETECT_DCP,
 	WEAK_CHARGER_DETECTED,
 	INCOMPATIBLE_DETECTED,
-	HVDCP_DETECT_CONFIRMED,
 };
 #endif
 
@@ -1692,6 +1694,7 @@ static int get_prop_batt_resistance_id(struct smbchg_chip *chip)
 	}
 	return rbatt;
 }
+#endif
 
 #define DEFAULT_BATT_FULL_CHG_CAPACITY	0
 static int get_prop_batt_full_charge(struct smbchg_chip *chip)
@@ -1705,7 +1708,6 @@ static int get_prop_batt_full_charge(struct smbchg_chip *chip)
 	}
 	return bfc;
 }
-#endif
 
 #define DEFAULT_BATT_VOLTAGE_NOW	0
 static int get_prop_batt_voltage_now(struct smbchg_chip *chip)
@@ -2189,6 +2191,14 @@ static void smbchg_usb_update_online_work(struct work_struct *work)
 #ifdef CONFIG_LGE_PM
 	union power_supply_propval val;
 
+	if (!chip->usb_psy)
+		chip->usb_psy = power_supply_get_by_name("usb");
+
+	if (!chip->usb_psy) {
+		pr_smb(PR_STATUS, "USB supply not found, deferring probe\n");
+		return;
+	}
+
 	online = user_enabled && chip->usb_present && !is_usb_suspended_by_scenario(chip);
 
 	if (chip->usb_psy && chip->usb_psy->get_property &&
@@ -2411,8 +2421,7 @@ static int smbchg_set_usb_current_max(struct smbchg_chip *chip,
 			}
 			chip->usb_max_current_ma = 500;
 		}
-		if ((force_fast_charge && current_ma == CURRENT_500_MA) ||
-				current_ma == CURRENT_900_MA) {
+		if (current_ma == CURRENT_900_MA) {
 			rc = smbchg_sec_masked_write(chip,
 					chip->usb_chgpth_base + CHGPTH_CFG,
 					CFG_USB_2_3_SEL_BIT, CFG_USB_3);
@@ -2494,6 +2503,9 @@ static bool is_hvdcp_present(struct smbchg_chip *chip)
 {
 	int rc;
 	u8 reg, hvdcp_sel;
+#ifdef CONFIG_LGE_PM
+	int usbin_vol;
+#endif
 
 	rc = smbchg_read(chip, &reg,
 			chip->usb_chgpth_base + USBIN_HVDCP_STS, 1);
@@ -2512,8 +2524,19 @@ static bool is_hvdcp_present(struct smbchg_chip *chip)
 	else
 		hvdcp_sel = USBIN_HVDCP_SEL_BIT;
 
+#ifdef CONFIG_LGE_PM
+	if(chip->fake_hvdcp_mode) {
+		usbin_vol = get_usb_adc(chip);
+		if (((reg & hvdcp_sel) || usbin_vol > 8000) && is_usb_present(chip))
+			return true;
+	}else{
+		if ((reg & hvdcp_sel) && is_usb_present(chip))
+			return true;
+	}
+#else
 	if ((reg & hvdcp_sel) && is_usb_present(chip))
 		return true;
+#endif
 
 	return false;
 }
@@ -2535,7 +2558,7 @@ static int smbchg_set_fastchg_current_raw(struct smbchg_chip *chip,
 			"Cannot find %dma current_table using %d\n",
 			current_ma, CURRENT_500_MA);
 
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 		/* In the case of LUCYE using PMI8996, the value of
 		 * SMBCHG_CHGR_FCC_CFG - PMI8996(0x10F2) for FCC_500MA_VAL is 0x2, not 0x4.
 		 */
@@ -2588,7 +2611,7 @@ static int smbchg_set_fastchg_current_raw(struct smbchg_chip *chip,
 #define DCIN_ACTIVE_PWR_SRC_BIT		BIT(0)
 #define PARALLEL_REENABLE_TIMER_MS	1000
 #ifdef CONFIG_LGE_PM_PARALLEL_CHARGING
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 #define PARALLEL_CHG_THRESHOLD_CURRENT	500
 #else
 #define PARALLEL_CHG_THRESHOLD_CURRENT	1000
@@ -2982,9 +3005,13 @@ static void smbchg_parallel_usb_taper_work(struct work_struct *work)
 #define BATTCHG_PROTECT_POLLING_MS 30000
 #define BATTCHG_PROTECT_RECHECK_MS 10000
 #define BATTCHG_PROTECT_FCC_MA_REDUCTION 100
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE)
 #define BATTCHG_PROTECT_LIMIT_VOTLAGE 4250
 #define BATTCHG_PROTECT_CLEAR_VOTLAGE 4150
+#elif defined (CONFIG_MACH_MSM8996_FALCON)
+#define BATTCHG_PROTECT_LIMIT_VOTLAGE 4250
+#define BATTCHG_PROTECT_CLEAR_VOTLAGE 4150
+#define BATTCHG_PROTECT_LIMIT_CURRENT 2000
 #else
 #define BATTCHG_PROTECT_LIMIT_VOTLAGE 4300
 #define BATTCHG_PROTECT_CLEAR_VOTLAGE 4200
@@ -2999,13 +3026,21 @@ static void smbchg_battchg_protect_work(struct work_struct *work)
 	const char *fcc_voter = get_effective_client(chip->fcc_votable);
 	int vbatt = get_prop_batt_voltage_now(chip) / 1000;
 
+#ifdef CONFIG_MACH_MSM8996_FALCON
+	pr_smb(PR_LGE, "fcc=%d and vbat=%d\n", fastchg_current_ma, vbatt);
+	if (fastchg_current_ma > BATTCHG_PROTECT_LIMIT_CURRENT){
+		fastchg_current_ma = BATTCHG_PROTECT_LIMIT_CURRENT;
+		pr_smb(PR_LGE, "Change fcc to 2A due to Battery spec\n");
+	}
+#endif
+
 #ifdef CONFIG_LGE_PM_CYCLE_BASED_CHG_VOLTAGE
     if (vbatt <= chip->vfloat_mv - (BATTCHG_PROTECT_FCC_MA_REDUCTION * 2)) {
 #else
 	if (vbatt <= BATTCHG_PROTECT_CLEAR_VOTLAGE) {
 #endif
 #ifdef CONFIG_LGE_PM_PARALLEL_CHARGING
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 		if (fastchg_current_ma == get_client_vote(chip->fcc_votable, TAPER_FCC_VOTER)) {
 #else
 		if (!fcc_voter || strcmp(fcc_voter, TAPER_FCC_VOTER) == 0) {
@@ -3109,8 +3144,6 @@ static void smbchg_parallel_usb_enable(struct smbchg_chip *chip,
 	pr_smb(PR_LGE, "New main ICL percent = %d\n", smbchg_main_chg_icl_percent);
 #endif
 
-	power_supply_set_voltage_limit(chip->usb_psy,
-			(chip->vfloat_mv + 50) * 1000);
 	/* Set USB ICL */
 	target_icl_ma = get_effective_result_locked(chip->usb_icl_votable);
 	if (target_icl_ma < 0) {
@@ -3147,7 +3180,7 @@ static void smbchg_parallel_usb_enable(struct smbchg_chip *chip,
 	}
 	parallel_chg_fcc_percent = 100 - smbchg_main_chg_fcc_percent;
 	target_parallel_fcc_ma = (fcc_ma * parallel_chg_fcc_percent) / 100;
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	/* Parallel charging Under 1A, set FCC of PMI to 300mA */
 	if (fcc_ma <= 1000) {
 		target_parallel_fcc_ma = fcc_ma - 300;
@@ -3522,7 +3555,7 @@ static int usb_suspend_vote_cb(struct votable *votable,
 		|| (strcmp(client, FAKE_BATTERY_EN_VOTER) == 0))
 		smbchg_parallel_usb_check_ok(chip);
 
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	if ((strcmp(client, USER_EN_VOTER)==0)
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_STORE_MODE
 		|| (strcmp(client, STORE_MODE_USB_EN_VOTER)==0)
@@ -3910,7 +3943,7 @@ static int set_usb_current_limit_vote_cb(struct votable *votable,
 
 	effective_client = get_effective_client_locked(chip->usb_icl_votable);
 
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#ifdef CONFIG_LGE_PM
 	/* Disable the parallel charger if ICL has changed */
 	smbchg_parallel_usb_disable(chip);
 #else
@@ -4247,13 +4280,10 @@ static int smbchg_float_voltage_set(struct smbchg_chip *chip, int vfloat_mv)
 		dev_err(chip->dev, "Couldn't set float voltage rc = %d\n", rc);
 	else {
 		chip->vfloat_mv = vfloat_mv;
-		power_supply_set_voltage_limit(chip->usb_psy,
-				chip->vfloat_mv * 1000);
-	}
-
 #ifdef CONFIG_LGE_PM_CYCLE_BASED_CHG_VOLTAGE
         batt_life_cycle_set_fcc_ma(chip);
 #endif
+	}
 
 	return rc;
 }
@@ -4717,6 +4747,14 @@ static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 	union power_supply_propval prop = {0,};
 #endif
 
+#ifdef CONFIG_MACH_MSM8996_LUCYE_KR_F
+#ifdef CONFIG_LGE_PM_CYCLE_BASED_CHG_VOLTAGE
+		pr_smb(PR_MISC, "No need to set vfloat and fcc with CBC feature.\n");
+		return 0;
+#endif
+#endif
+
+
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_BATTERY_ID_CHECKER
 	chip->lge_batt_id_lpc = lge_power_get_by_name("lge_batt_id");
 	if (chip->lge_batt_id_lpc) {
@@ -5008,12 +5046,19 @@ static void smbchg_set_vbat_low_thr(struct smbchg_chip *chip)
 #endif
 
 #ifdef CONFIG_LGE_PM_LGE_POWER_CORE
+#if defined(CONFIG_MACH_MSM8996_LUCYE_KR_F) || defined(CONFIG_MACH_MSM8996_FALCON)
+static char *lge_cable_type_str[] = {
+       "NOT INIT", "MHL 1K", "56K",
+	   "130K", "910K",  "OPEN"
+};
+#else
 static char *lge_cable_type_str[] = {
        "NOT INIT", "MHL 1K", "U_28P7K",
        "28P7K", "56K", "100K",  "130K",
        "180K", "200K", "220K",  "270K",
        "330K", "620K", "910K",  "OPEN"
 };
+#endif
 
 static void smbchg_external_lge_power_changed(struct power_supply *psy)
 {
@@ -5798,10 +5843,12 @@ static void smbchg_chg_led_brightness_set(struct led_classdev *cdev,
 	reg = (value > LED_OFF) ? CHG_LED_ON << CHG_LED_SHIFT :
 		CHG_LED_OFF << CHG_LED_SHIFT;
 
-	if (value > LED_OFF)
-		power_supply_set_hi_power_state(chip->bms_psy, 1);
-	else
-		power_supply_set_hi_power_state(chip->bms_psy, 0);
+	if (chip->bms_psy) {
+		if (value > LED_OFF)
+			power_supply_set_hi_power_state(chip->bms_psy, 1);
+		else
+			power_supply_set_hi_power_state(chip->bms_psy, 0);
+	}
 
 	pr_smb(PR_STATUS,
 			"set the charger led brightness to value=%d\n",
@@ -5844,11 +5891,16 @@ static void smbchg_chg_led_blink_set(struct smbchg_chip *chip,
 	u8 reg;
 	int rc;
 
+	if (chip->bms_psy) {
+		if (blinking == 0)
+			power_supply_set_hi_power_state(chip->bms_psy, 0);
+		else
+			power_supply_set_hi_power_state(chip->bms_psy, 1);
+	}
+
 	if (blinking == 0) {
 		reg = CHG_LED_OFF << CHG_LED_SHIFT;
-		power_supply_set_hi_power_state(chip->bms_psy, 0);
 	} else {
-		power_supply_set_hi_power_state(chip->bms_psy, 1);
 		if (blinking == 1)
 			reg = LED_BLINKING_PATTERN2 << CHG_LED_SHIFT;
 		else if (blinking == 2)
@@ -6212,6 +6264,7 @@ static int smbchg_change_usb_supply_type(struct smbchg_chip *chip,
 						enum power_supply_type type)
 {
 	int rc, current_limit_ma;
+	union power_supply_propval propval;
 
 	/*
 	 * if the type is not unknown, set the type before changing ICL vote
@@ -6300,9 +6353,12 @@ static int smbchg_change_usb_supply_type(struct smbchg_chip *chip,
 		}
 	}
 #endif
-
-	if (!chip->skip_usb_notification)
-		power_supply_set_supply_type(chip->usb_psy, type);
+        if (!chip->skip_usb_notification) {
+                propval.intval = type;
+                chip->usb_psy->set_property(chip->usb_psy,
+                                POWER_SUPPLY_PROP_REAL_TYPE,
+                                &propval);
+        }
 
 	/*
 	 * otherwise if it is unknown, remove vote
@@ -6429,6 +6485,19 @@ static void smbchg_hvdcp_det_prepare_work(struct work_struct *work)
 	}
 #endif
 
+#ifdef CONFIG_LGE_PM
+	if(chip->fake_hvdcp_mode){
+		rc = smbchg_sec_masked_write(chip,
+			chip->usb_chgpth_base + USBIN_CHGR_CFG,
+			ADAPTER_ALLOWANCE_MASK,	USBIN_ADAPTER_5V_9V_CONT);
+		if (rc < 0) {
+			pr_err("Couldn't write usb allowance rc=%d\n", rc);
+			return;
+		}
+		return;
+	}
+#endif
+
 	/*
 	 * if High Voltage PD Charger exist, faking removal/insertion will fail.
 	 * so bypass HVDCP detection
@@ -6439,7 +6508,7 @@ static void smbchg_hvdcp_det_prepare_work(struct work_struct *work)
 		goto out;
 	}
 
-#ifndef CONFIG_MACH_MSM8996_LUCYE
+#if !defined (CONFIG_MACH_MSM8996_LUCYE) && !defined (CONFIG_MACH_MSM8996_FALCON)
 	/* 1. The 'hvdcp_uv_recovery' will not be cleared on normal recovery process.
 	 *    It is cleared only when some error is occurred during recovery.
 	 *    So once the recovery is processed, the uncleared 'hvdcp_uv_recovery' causes skipping Rp check
@@ -6469,7 +6538,7 @@ static void smbchg_hvdcp_det_prepare_work(struct work_struct *work)
 		return;
 	}
 #else
-#ifndef CONFIG_MACH_MSM8996_LUCYE
+#if !defined (CONFIG_MACH_MSM8996_LUCYE) && !defined (CONFIG_MACH_MSM8996_FALCON)
 	/* Lucye can support HVDCP with Rp 10K */
 	if (chip->ctype_rp == RP_10K) {
 		pr_smb(PR_LGE, "Rp = %dk, ignore HVDCP\n",
@@ -6582,7 +6651,7 @@ static void smbchg_hvdcp_recovery_work(struct work_struct *work)
 	int usbin_vol;
 	int rc;
 
-#ifndef CONFIG_MACH_MSM8996_LUCYE
+#if !defined (CONFIG_MACH_MSM8996_LUCYE) && !defined (CONFIG_MACH_MSM8996_FALCON)
 	if (lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO)
 		return;
 #endif
@@ -6596,9 +6665,6 @@ static void smbchg_hvdcp_recovery_work(struct work_struct *work)
 
 	usbin_vol = get_usb_adc(chip);
 	if (usbin_vol > HVDCP_RECOVERY_MV) {
-#ifdef CONFIG_LGE_PM_INCOMPATIBLE_HVDCP_SUPPORT
-		chip->incompatible_hvdcp_detected = HVDCP_DETECT_CONFIRMED;
-#endif
 		schedule_delayed_work(&chip->hvdcp_recovery_work,
 				msecs_to_jiffies(HVDCP_RECOVERY_MS));
 		goto out;
@@ -6791,33 +6857,19 @@ static void hvdcp_disable_work(struct work_struct *work){
 				struct smbchg_chip,
 				hvdcp_disable_work.work);
 	int rc;
-	int usb_present;
 	pr_smb(PR_LGE, "Disable hvdcp. Forced to 5V charge.\n");
 
 	/* disable HVDCP */
 	cancel_delayed_work(&chip->hvdcp_recovery_work);
 
-	if(chip->incompatible_hvdcp_detected != INCOMPATIBLE_DETECTED){
-		pr_smb(PR_LGE, "Not Incompatible case. Force out.");
-		return;
-	}
-
-	usb_present = is_usb_present(chip);
-
-	if(!usb_present){
-		pr_smb(PR_LGE, "USB present false. Force out.\n");
-		return;
-	}
-
-	smbchg_change_usb_supply_type(chip,
-				POWER_SUPPLY_TYPE_USB_DCP);
-
-	if (chip->psy_registered)
-		power_supply_changed(&chip->batt_psy);
-
 	rc = smbchg_sec_masked_write(chip,
 				chip->usb_chgpth_base + CHGPTH_CFG,
 				HVDCP_EN_BIT, 0);
+
+	smbchg_change_usb_supply_type(chip,
+				POWER_SUPPLY_TYPE_USB_DCP);
+	if (chip->psy_registered)
+		power_supply_changed(&chip->batt_psy);
 
 	chip->incompatible_hvdcp_det_ignore_uv = true;
 	rc = fake_insertion_removal_for_uv(chip, false);
@@ -6863,9 +6915,15 @@ static void smbchg_hvdcp_det_work(struct work_struct *work)
 			(chip->incompatible_hvdcp_det_ignore_uv == false)){
 			pr_smb(PR_LGE, "Incompatible_hvdcp_detected. Forced to 5V charge.\n");
 			cancel_delayed_work(&chip->hvdcp_disable_work);
-			schedule_delayed_work(&chip->hvdcp_disable_work,
-					msecs_to_jiffies(HVDCP_DISABLE_DELAY_MS));
-			return;
+			if (lge_get_boot_mode() == LGE_BOOT_MODE_QEM_56K ||
+			lge_get_boot_mode() == LGE_BOOT_MODE_QEM_130K ||
+			lge_get_boot_mode() == LGE_BOOT_MODE_QEM_910K) {
+				pr_smb(PR_LGE, "MiniOS boot, skip disable HVDCP.\n");
+			}else {
+				schedule_delayed_work(&chip->hvdcp_disable_work,
+						msecs_to_jiffies(HVDCP_DISABLE_DELAY_MS));
+				return;
+			}
 		}
 
 #endif
@@ -6877,7 +6935,6 @@ static void smbchg_hvdcp_det_work(struct work_struct *work)
 				POWER_SUPPLY_TYPE_USB_HVDCP);
 		if (chip->psy_registered)
 			power_supply_changed(&chip->batt_psy);
-
 		smbchg_aicl_deglitch_wa_check(chip);
 #ifdef CONFIG_LGE_PM
 		cancel_delayed_work(&chip->hvdcp_recovery_work);
@@ -7161,7 +7218,7 @@ static void handle_usb_removal(struct smbchg_chip *chip)
 	}
 #endif
 #ifdef CONFIG_LGE_PM
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 #define BATT_PACH_CHECK_DELAY 1100
 #else
 #define BATT_PACH_CHECK_DELAY 800
@@ -7565,7 +7622,11 @@ static void increment_aicl_count(struct smbchg_chip *chip)
 
 static int wait_for_usbin_uv(struct smbchg_chip *chip, bool high)
 {
+#ifdef CONFIG_LGE_PM
+	int rc =0;
+#else
 	int rc;
+#endif
 	int tries = 3;
 	struct completion *completion = &chip->usbin_uv_lowered;
 	bool usbin_uv;
@@ -7595,7 +7656,11 @@ static int wait_for_usbin_uv(struct smbchg_chip *chip, bool high)
 
 static int wait_for_src_detect(struct smbchg_chip *chip, bool high)
 {
+#ifdef CONFIG_LGE_PM
+	int rc = 0;
+#else
 	int rc;
+#endif
 	int tries = 3;
 	struct completion *completion = &chip->src_det_lowered;
 	bool src_detect;
@@ -8700,6 +8765,7 @@ skip_current_for_non_sdp:
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_SIMPLE
 #ifdef CONFIG_LGE_USB_ANX7688_OVP
 #ifdef CONFIG_LGE_USB_TYPE_C
+		read_usb_type(chip, &usb_type_name, &usb_supply_type);
 		if (!chip->typec_psy) {
 			chip->typec_psy = power_supply_get_by_name("usb_pd");
 			if (IS_ERR(chip->typec_psy))
@@ -8744,7 +8810,7 @@ skip_current_for_non_sdp:
 #endif
 #endif
 
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	/* To make UI status correct, below update work should be invoked after USB's uevent.
 	 * In fact, below work has effect to OVERRIDE UI status after updated by USB
 	 */
@@ -8781,8 +8847,8 @@ static enum power_supply_property smbchg_battery_properties[] = {
 #endif
 #ifdef CONFIG_LGE_PM_RESTORE_BATT_INFO
 	POWER_SUPPLY_PROP_RESISTANCE_ID,
-	POWER_SUPPLY_PROP_CHARGE_FULL,
 #endif
+	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_SAFETY_TIMER_ENABLE,
 	POWER_SUPPLY_PROP_INPUT_CURRENT_MAX,
 	POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED,
@@ -8796,6 +8862,10 @@ static enum power_supply_property smbchg_battery_properties[] = {
 	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMITED,
 	POWER_SUPPLY_PROP_RERUN_AICL,
 	POWER_SUPPLY_PROP_RESTRICTED_CHARGING,
+#ifdef CONFIG_LGE_PM
+	POWER_SUPPLY_PROP_FASTCHG_SUPPORT,
+	POWER_SUPPLY_PROP_HVDCP_FAKE_MODE,
+#endif
 	POWER_SUPPLY_PROP_ALLOW_HVDCP3,
 #ifdef CONFIG_LGE_PM_FG_AGE
 	POWER_SUPPLY_PROP_BATTERY_CONDITION,
@@ -8828,7 +8898,7 @@ static int smbchg_battery_set_property(struct power_supply *psy,
 		rc = vote(chip->dc_suspend_votable, USER_EN_VOTER,
 				!val->intval, 0);
 		chip->chg_enabled = val->intval;
-#ifndef CONFIG_MACH_MSM8996_LUCYE
+#if !defined (CONFIG_MACH_MSM8996_LUCYE) && !defined (CONFIG_MACH_MSM8996_FALCON)
 		/* triggerring set_online_work is moved to vote cb */
 		schedule_work(&chip->usb_set_online_work);
 #endif
@@ -8900,6 +8970,15 @@ static int smbchg_battery_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_RESTRICTED_CHARGING:
 		rc = smbchg_restricted_charging(chip, val->intval);
 		break;
+#ifdef CONFIG_LGE_PM
+	case POWER_SUPPLY_PROP_FASTCHG_SUPPORT:
+		chip->hvdcp_not_supported = !val->intval;
+		break;
+	case POWER_SUPPLY_PROP_HVDCP_FAKE_MODE:
+		if (chip->fake_hvdcp_mode != val->intval)
+			chip->fake_hvdcp_mode = val->intval;
+		break;
+#endif
 	case POWER_SUPPLY_PROP_CURRENT_CAPABILITY:
 #ifdef CONFIG_LGE_USB_TYPE_C
 		if (!chip->typec_psy)
@@ -8990,6 +9069,10 @@ static int smbchg_battery_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_DP_DM:
 	case POWER_SUPPLY_PROP_RERUN_AICL:
 	case POWER_SUPPLY_PROP_RESTRICTED_CHARGING:
+#ifdef CONFIG_LGE_PM
+	case POWER_SUPPLY_PROP_FASTCHG_SUPPORT:
+	case POWER_SUPPLY_PROP_HVDCP_FAKE_MODE:
+#endif
 #ifdef CONFIG_LGE_USB_TYPE_C
 	case POWER_SUPPLY_PROP_DP_ALT_MODE:
 #endif
@@ -9036,7 +9119,7 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 			val->intval = !val->intval;
 		break;
 	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-#ifndef CONFIG_MACH_MSM8996_LUCYE
+#if !defined (CONFIG_MACH_MSM8996_LUCYE) && !defined (CONFIG_MACH_MSM8996_FALCON)
 	/* There is no reason for returning "online" as true like below */
 		if (chip->usb_present || chip->dc_present)
 			chip->chg_enabled = true;
@@ -9083,6 +9166,14 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_RESTRICTED_CHARGING:
 		val->intval = (int)chip->restricted_charging;
 		break;
+#ifdef CONFIG_LGE_PM
+	case POWER_SUPPLY_PROP_FASTCHG_SUPPORT:
+		val->intval = (int)!chip->hvdcp_not_supported;
+		break;
+	case POWER_SUPPLY_PROP_HVDCP_FAKE_MODE:
+		val->intval = chip->fake_hvdcp_mode;
+		break;
+#endif
 	/* properties from fg */
 	case POWER_SUPPLY_PROP_CAPACITY:
 		val->intval = get_prop_batt_capacity(chip);
@@ -9111,10 +9202,10 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_RESISTANCE_ID:
 		val->intval = get_prop_batt_resistance_id(chip);
 		break;
+#endif
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		val->intval = get_prop_batt_full_charge(chip);
 		break;
-#endif
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = get_prop_batt_temp(chip);
 		break;
@@ -9765,11 +9856,6 @@ static irqreturn_t usbin_uv_handler(int irq, void *_chip)
 			goto out;
 		}
 
-		if (chip->incompatible_hvdcp_detected == HVDCP_DETECT_CONFIRMED){
-			pr_smb(PR_LGE, "HVDCP_DETECTED_OK. skip.\n");
-			goto out;
-		}
-
 		if(chip->incompatible_hvdcp_detected == FIRST_APSD_DETECT_DCP){
 			chip->incompatible_hvdcp_detected = WEAK_CHARGER_DETECTED;
 			pr_smb(PR_LGE, "weak hvdcp detected. status = %d\n",chip->incompatible_hvdcp_detected);
@@ -9778,11 +9864,18 @@ static irqreturn_t usbin_uv_handler(int irq, void *_chip)
 			pr_smb(PR_LGE, "weak hvdcp detected. status = %d\n",chip->incompatible_hvdcp_detected);
 		} else {
 			pr_smb(PR_LGE, "weak hvdcp detected. status = %d\n",chip->incompatible_hvdcp_detected);
-			if (is_hvdcp_present(chip) && (chip->incompatible_hvdcp_detected == INCOMPATIBLE_DETECTED)) {
+			if (is_hvdcp_present(chip)) {
 				pr_err("Incompatible_hvdcp_detected. Forced to 5V charge.\n");
+				chip->incompatible_hvdcp_detected = INCOMPATIBLE_DETECTED;
 				cancel_delayed_work(&chip->hvdcp_disable_work);
-				schedule_delayed_work(&chip->hvdcp_disable_work,
-						msecs_to_jiffies(HVDCP_DISABLE_DELAY_MS));
+				if (lge_get_boot_mode() == LGE_BOOT_MODE_QEM_56K ||
+				lge_get_boot_mode() == LGE_BOOT_MODE_QEM_130K ||
+				lge_get_boot_mode() == LGE_BOOT_MODE_QEM_910K) {
+					pr_smb(PR_LGE, "MiniOS boot, skip disable HVDCP.\n");
+				}else {
+					schedule_delayed_work(&chip->hvdcp_disable_work,
+							msecs_to_jiffies(HVDCP_DISABLE_DELAY_MS));
+				}
 			}
 		}
 #endif
@@ -9978,7 +10071,7 @@ static irqreturn_t otg_oc_handler(int irq, void *_chip)
  */
 static irqreturn_t otg_fail_handler(int irq, void *_chip)
 {
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	struct smbchg_chip *chip = _chip;
 	union power_supply_propval ret = {0, };
 	int rc;
@@ -10145,7 +10238,7 @@ static void lgcc_charger_reginfo(struct work_struct *work) {
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_SIMPLE
 	char *usb_ctype_name = "null";
 #endif
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	u8 reg_icl_sts_1, reg_icl_sts_2, reg_chgpth_cmd_il;
 #endif
 	if (!chip->bms_psy || !chip->usb_psy || !parallel_psy) {
@@ -10170,7 +10263,7 @@ static void lgcc_charger_reginfo(struct work_struct *work) {
 				LGE_POWER_PROP_BD2_THERM_PHY, &lge_val);
 		board_therm = lge_val.intval;
 	}
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	vts_therm = (((xo_therm * VTS_WEIGHT_XO_TEMP)
 				+ (board_therm * VTS_WEIGHT_BD2_TEMP))
 			+ VTS_CONST_1) / VTS_WEIGHT_BY_PERCENT;
@@ -10385,7 +10478,7 @@ static void lgcc_charger_reginfo(struct work_struct *work) {
 	} else
 		safety_status = false;
 
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	rc = smbchg_read(chip, &reg_icl_sts_1, chip->usb_chgpth_base + ICL_STS_1_REG, 1);
 	if (rc < 0)
 		pr_err("fail to read ICL_STS_1_REG, %d\n", rc);
@@ -10422,7 +10515,7 @@ static void lgcc_charger_reginfo(struct work_struct *work) {
 	pr_info("[STATUS] IUSB_MAX[%d], USB_CTYPE[%s]\n",
 			chip->usb_max_current_ma, usb_ctype_name);
 #endif
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	pr_info("[STATS] ICL_STS_1[0x%02x] ICL_STS_2[0x%02x] CHGPTH_CMDIL[0x%02x]\n",
 			reg_icl_sts_1, reg_icl_sts_2, reg_chgpth_cmd_il);
 #endif
@@ -10588,7 +10681,7 @@ static inline int get_bpd(const char *name)
 #define AICL_ICL_VALUE                  BIT(7)
 #endif
 
-#if defined(CONFIG_LGE_USB_BC_12_VZW) || defined(CONFIG_MACH_MSM8996_LUCYE)
+#if defined(CONFIG_LGE_USB_BC_12_VZW) || defined(CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 #define VBL_SEL_CFG 		0xF2
 #define VBAT_LOW_SRC 			BIT(0)
 #endif
@@ -11105,7 +11198,7 @@ static int smbchg_hw_init(struct smbchg_chip *chip)
 		pr_err("Couldn't write to MISC_TRIM_OPTIONS_15_8 rc=%d\n",
 			rc);
 
-#if defined(CONFIG_LGE_USB_BC_12_VZW) || defined(CONFIG_MACH_MSM8996_LUCYE)
+#if defined(CONFIG_LGE_USB_BC_12_VZW) || defined(CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	if (!lge_get_factory_boot()) {
 		/* set DCD Timeout Dealy as 300ms */
 		rc = smbchg_sec_masked_write(chip,
@@ -11302,6 +11395,10 @@ static int batt_life_cycle_dt_init (struct smbchg_chip* chip) {
             pr_err("Incorrect batt-life-cycle-fcc-ma\n");
             goto out;
         }
+#ifdef CONFIG_MACH_MSM8996_LUCYE_KR_F
+		chip->batt_life_cycle_fcc_ma[i] = chip->cfg_fastchg_current_ma
+								- chip->batt_life_cycle_fcc_ma[i];
+#endif
         pr_smb(PR_LGE, "batt_life_cycle_fcc_ma %d : %d\n",
             i, chip->batt_life_cycle_fcc_ma[i]);
     }
@@ -11331,6 +11428,10 @@ static int batt_life_cycle_dt_init (struct smbchg_chip* chip) {
             pr_err("Incorrect batt-life-cycle-vfloate\n");
             goto out;
         }
+#ifdef CONFIG_MACH_MSM8996_LUCYE_KR_F
+		chip->batt_life_cycle_vfloat[i] = chip->vfloat_mv
+							- chip->batt_life_cycle_vfloat[i];
+#endif
         pr_smb(PR_LGE, "batt_life_cycle_vfloat %d : %d\n",
             i, chip->batt_life_cycle_vfloat[i]);
     }
@@ -12097,7 +12198,7 @@ static int smbchg_probe(struct spmi_device *spmi)
 #ifdef CONFIG_LGE_USB_TYPE_C
 	const char *typec_psy_name;
 #endif
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
     bool usb_present;
 #endif
 
@@ -12397,6 +12498,7 @@ static int smbchg_probe(struct spmi_device *spmi)
 	chip->hvdcp_uv_count = 0;
 	chip->hvdcp_uv_recovery = false;
 	chip->usb_status_lock_flag = false;
+	chip->fake_hvdcp_mode = false;
 #endif
 	dev_set_drvdata(&spmi->dev, chip);
 
@@ -12564,7 +12666,7 @@ static int smbchg_probe(struct spmi_device *spmi)
 		goto unregister_led_class;
 	}
 
-#ifdef CONFIG_MACH_MSM8996_LUCYE
+#if defined (CONFIG_MACH_MSM8996_LUCYE) || defined (CONFIG_MACH_MSM8996_FALCON)
 	usb_present = is_usb_present(chip);
 	if (usb_present && (chip->usb_present != usb_present)){
 		power_supply_set_dp_dm(chip->usb_psy, POWER_SUPPLY_DP_DM_DPF_DMF);
