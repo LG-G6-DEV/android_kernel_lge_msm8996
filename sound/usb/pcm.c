@@ -311,9 +311,6 @@ static int search_roland_implicit_fb(struct usb_device *dev, int ifnum,
 	return 0;
 }
 
-/* Setup an implicit feedback endpoint from a quirk. Returns 0 if no quirk
- * applies. Returns 1 if a quirk was found.
- */
 static int set_sync_ep_implicit_fb_quirk(struct snd_usb_substream *subs,
 					 struct usb_device *dev,
 					 struct usb_interface_descriptor *altsd,
@@ -373,7 +370,7 @@ add_sync_ep:
 
 	subs->data_endpoint->sync_master = subs->sync_endpoint;
 
-	return 1;
+	return 0;
 }
 
 static int set_sync_endpoint(struct snd_usb_substream *subs,
@@ -397,10 +394,6 @@ static int set_sync_endpoint(struct snd_usb_substream *subs,
 	err = set_sync_ep_implicit_fb_quirk(subs, dev, altsd, attr);
 	if (err < 0)
 		return err;
-
-	/* endpoint set by quirk */
-	if (err > 0)
-		return 0;
 
 	if (altsd->bNumEndpoints < 2)
 		return 0;
@@ -531,6 +524,68 @@ static int set_format(struct snd_usb_substream *subs, struct audioformat *fmt)
 	subs->cur_audiofmt = fmt;
 
 	snd_usb_set_format_quirk(subs, fmt);
+
+	return 0;
+}
+
+int snd_usb_enable_audio_stream(struct snd_usb_substream *subs,
+	bool enable)
+{
+	struct audioformat *fmt;
+	struct usb_host_interface *alts;
+	struct usb_interface *iface;
+	int ret;
+
+	if (!enable) {
+		if (subs->interface >= 0) {
+			usb_set_interface(subs->dev, subs->interface, 0);
+			subs->altset_idx = 0;
+			subs->interface = -1;
+			subs->cur_audiofmt = NULL;
+		}
+
+		snd_usb_autosuspend(subs->stream->chip);
+		return 0;
+	}
+
+	snd_usb_autoresume(subs->stream->chip);
+	fmt = find_format(subs);
+	if (!fmt) {
+		dev_err(&subs->dev->dev,
+		"cannot set format: format = %#x, rate = %d, channels = %d\n",
+			   subs->pcm_format, subs->cur_rate, subs->channels);
+		return -EINVAL;
+	}
+
+	subs->altset_idx = 0;
+	subs->interface = -1;
+	if (subs->stream->chip->shutdown) {
+		ret = -ENODEV;
+	} else {
+		ret = set_format(subs, fmt);
+		if (ret < 0)
+			return ret;
+
+		iface = usb_ifnum_to_if(subs->dev, subs->cur_audiofmt->iface);
+#ifdef CONFIG_LGE_USB_G_ANDROID
+		if (WARN_ON(!iface))
+			return -EINVAL;
+#endif
+		alts = &iface->altsetting[subs->cur_audiofmt->altset_idx];
+		ret = snd_usb_init_sample_rate(subs->stream->chip,
+					       subs->cur_audiofmt->iface,
+					       alts,
+					       subs->cur_audiofmt,
+					       subs->cur_rate);
+		if (ret < 0) {
+			dev_err(&subs->dev->dev, "failed to set rate %d\n",
+				subs->cur_rate);
+			return ret;
+		}
+	}
+
+	subs->interface = fmt->iface;
+	subs->altset_idx = fmt->altset_idx;
 
 	return 0;
 }

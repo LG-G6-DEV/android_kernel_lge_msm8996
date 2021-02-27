@@ -336,8 +336,9 @@ static void lge_set_sdev_name(struct wcd_mbhc *mbhc, int status)
 
     if ((mbhc->mbhc_cfg->detect_extn_cable) && (status == SND_JACK_LINEOUT))
 		mbhc->sdev.name = LGE_SWITCH_NAME_AUX_HIDDEN;
-	else if ((mbhc->zl > LGE_ADVANCED_HEADSET_THRESHOLD-advanced_threshold) &&
-		       (mbhc->zr > LGE_ADVANCED_HEADSET_THRESHOLD-advanced_threshold))
+	else if (((mbhc->zl > LGE_ADVANCED_HEADSET_THRESHOLD-advanced_threshold) &&
+		       (mbhc->zr > LGE_ADVANCED_HEADSET_THRESHOLD-advanced_threshold)) ||
+		((mbhc->zl > LGE_ADVANCED_HEADSET_THRESHOLD-advanced_threshold) && (mbhc->zr == 0)))
 		mbhc->sdev.name = LGE_SWITCH_NAME_AUX;
 	else if (mbhc->zr < LGE_NORMAL_HEADSET_THRESHOLD-normal_threshold)
 		mbhc->sdev.name = LGE_SWITCH_NAME_NORMAL;
@@ -347,6 +348,12 @@ static void lge_set_sdev_name(struct wcd_mbhc *mbhc, int status)
 	else
 		mbhc->sdev.name = LGE_SWITCH_NAME_AUX;
 #else   /* LGE original from ELSA*/
+
+	if (mbhc->zl == 0 && mbhc->zr == 0) {
+		mbhc->zl = mbhc->zr = 0x0FFFFFFE;
+		pr_info("[LGE MBHC] both zl and zr are 0, it could be a Aux Cable(L:%d,R:%d)\n", mbhc->zl, mbhc->zr);
+	}
+
     if ((mbhc->mbhc_cfg->detect_extn_cable) && (status == SND_JACK_LINEOUT))
 		mbhc->sdev.name = LGE_SWITCH_NAME_AUX_HIDDEN;
 	else if (mbhc->zr >= LGE_NORMAL_HEADSET_THRESHOLD &&
