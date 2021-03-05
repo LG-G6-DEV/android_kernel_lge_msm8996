@@ -6035,7 +6035,8 @@ int mdss_mdp_ad_input(struct msm_fb_data_type *mfd,
 			}
 			mutex_unlock(&ad->lock);
 			mutex_lock(&mfd->bl_lock);
-			bl = mdss_brightness_to_bl(mfd->panel_info, bl);
+			MDSS_BRIGHT_TO_BL(bl, bl, mfd->panel_info->bl_max,
+					mfd->panel_info->brightness_max);
 			mdss_fb_set_backlight(mfd, bl);
 #ifdef CONFIG_LGE_DISPLAY_BL_EXTENDED
 			/* TODO: change bl level correctly */
