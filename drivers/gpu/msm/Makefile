@@ -2,6 +2,7 @@ ccflags-y := -Iinclude/uapi/drm -Iinclude/drm -Idrivers/gpu/msm
 
 msm_kgsl_core-y = \
 	kgsl.o \
+	kgsl_trace.o \
 	kgsl_cmdbatch.o \
 	kgsl_ioctl.o \
 	kgsl_sharedmem.o \
@@ -25,6 +26,7 @@ msm_adreno-y += \
 	adreno_dispatch.o \
 	adreno_snapshot.o \
 	adreno_coresight.o \
+	adreno_trace.o \
 	adreno_a5xx.o \
 	adreno_a5xx_snapshot.o \
 	adreno_a5xx_preempt.o \
